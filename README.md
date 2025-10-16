@@ -52,23 +52,31 @@ pip install "mcp[cli]"
 
 ### For OpenCode
 
-OpenCode automatically discovers MCP servers. To use:
+**📖 [Complete OpenCode Setup Guide →](OPENCODE_SETUP.md)**
 
-1. Ensure the server is in your project directory
-2. OpenCode will detect `odoo_mcp_server.py` automatically
-3. Access tools via `@` mention or command palette
+Quick setup - add to `.opencode.jsonc`:
 
-Alternatively, configure in OpenCode settings:
-```json
+```jsonc
 {
-  "mcp.servers": {
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
     "odoo-dev": {
-      "command": "python",
-      "args": ["${workspaceFolder}/odoo_mcp_server.py"]
+      "type": "local",
+      "command": ["python", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "enabled": true
     }
   }
 }
 ```
+
+Then use in OpenCode:
+```
+@odoo-dev set Odoo version to 19.0
+@odoo-dev create model library.book with fields: name, author
+@odoo-dev show odoo://rules/odoo-development
+```
+
+**See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for complete guide with examples, troubleshooting, and workflows.**
 
 ## Quick Start
 
