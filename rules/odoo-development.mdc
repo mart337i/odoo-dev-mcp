@@ -1,0 +1,450 @@
+---
+description: Odoo-specific development guidelines and best practices. These rules ensure code quality, maintainability, and compliance with Odoo conventions.
+globs: 
+alwaysApply: true
+---
+
+# Odoo Development Guidelines
+
+## Module Structure
+
+### Naming Conventions
+- **Module names**: Use lowercase with underscores (e.g., `sale_extended`, `inventory_custom`)
+- **Technical name**: Same as module directory name
+- **Display name**: Human-readable with spaces (e.g., "Sales Extended")
+- Never use hyphens in module names
+
+### Directory Structure
+```
+module_name/
+├── __init__.py              # Import submodules
+├── __manifest__.py          # Module metadata
+├── models/                  # Python models
+│   ├── __init__.py
+│   └── model_name.py
+├── views/                   # XML views
+│   └── model_views.xml
+├── security/                # Access rights and rules
+│   ├── ir.model.access.csv
+│   └── module_security.xml
+├── data/                    # Data files
+├── wizard/                  # Transient models
+├── report/                  # Report definitions
+├── static/                  # Static assets
+│   ├── description/
+│   │   └── icon.png        # 128x128 PNG
+│   └── src/
+└── i18n/                    # Translations
+```
+
+## Python Coding Standards
+
+### Model Naming
+- **Model name**: Use dot notation (e.g., `sale.order.line`)
+- **Class name**: CamelCase matching model (e.g., `SaleOrderLine`)
+- **Inherit**: Use `_inherit` for extension, `_inherits` for delegation
+- Never use underscore in model names (use dots)
+
+### Field Naming
+- **Field names**: lowercase_with_underscores
+- **Boolean fields**: Start with `is_`, `has_`, or `can_` (e.g., `is_active`)
+- **Many2one fields**: End with `_id` (e.g., `partner_id`)
+- **One2many/Many2many fields**: End with `_ids` (e.g., `line_ids`)
+- **Computed fields**: Descriptive names, add `compute` parameter
+
+### Field Types and Parameters
+```python
+# Char fields
+name = fields.Char(string='Name', required=True, index=True)
+
+# Many2one with domain and context
+partner_id = fields.Many2one(
+    'res.partner',
+    string='Customer',
+    required=True,
+    domain="[('customer_rank', '>', 0)]",
+    context="{'default_customer_rank': 1}"
+)
+
+# Selection field
+state = fields.Selection([
+    ('draft', 'Draft'),
+    ('confirmed', 'Confirmed'),
+    ('done', 'Done'),
+], string='Status', default='draft', required=True)
+
+# Computed field
+total_amount = fields.Float(
+    string='Total',
+    compute='_compute_total_amount',
+    store=True
+)
+```
+
+### Method Naming
+- **Public methods**: lowercase_with_underscores
+- **Private methods**: Start with underscore (e.g., `_compute_amount`)
+- **Compute methods**: Start with `_compute_` (e.g., `_compute_total`)
+- **Onchange methods**: Start with `_onchange_` (e.g., `_onchange_partner_id`)
+- **Constraint methods**: Start with `_check_` (e.g., `_check_dates`)
+- **CRUD override**: `create`, `write`, `unlink` (not `delete`)
+
+### Decorators Order
+Always use decorators in this order:
+```python
+@api.model
+@api.depends('field1', 'field2')
+@api.constrains('field1')
+@api.onchange('field1')
+def method_name(self):
+    pass
+```
+
+### API Decorators
+- `@api.model`: Class-level method (no recordset)
+- `@api.depends('field')`: For computed fields
+- `@api.constrains('field')`: For validation
+- `@api.onchange('field')`: For UI reactivity
+- `@api.returns('model')`: Define return type
+
+### Method Structure
+```python
+class MyModel(models.Model):
+    _name = 'my.model'
+    _description = 'My Model Description'
+    _order = 'sequence, id'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    
+    # Fields declaration
+    name = fields.Char(required=True)
+    
+    # SQL Constraints
+    _sql_constraints = [
+        ('name_unique', 'unique(name)', 'Name must be unique!'),
+    ]
+    
+    # Python Constraints
+    @api.constrains('field_name')
+    def _check_field_name(self):
+        for record in self:
+            if not record.field_name:
+                raise ValidationError("Error message")
+    
+    # Compute methods
+    @api.depends('line_ids.amount')
+    def _compute_total(self):
+        for record in self:
+            record.total = sum(record.line_ids.mapped('amount'))
+    
+    # Onchange methods
+    @api.onchange('partner_id')
+    def _onchange_partner_id(self):
+        if self.partner_id:
+            self.email = self.partner_id.email
+    
+    # CRUD methods
+    @api.model
+    def create(self, vals):
+        # Pre-processing
+        result = super(MyModel, self).create(vals)
+        # Post-processing
+        return result
+    
+    # Action methods
+    def action_confirm(self):
+        self.ensure_one()
+        self.state = 'confirmed'
+    
+    # Business logic methods
+    def _prepare_invoice_values(self):
+        self.ensure_one()
+        return {...}
+```
+
+## View (XML) Standards
+
+### File Naming
+- Use model name with underscores: `sale_order_views.xml`
+- For multiple models: `module_name_views.xml`
+
+### View Naming Convention
+- **ID format**: `view_{model}_{type}[_suffix]`
+- Examples:
+  - `view_sale_order_form`
+  - `view_sale_order_tree`
+  - `view_sale_order_search`
+  - `view_sale_order_kanban`
+
+### View Structure
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form View -->
+    <record id="view_model_form" model="ir.ui.view">
+        <field name="name">model.name.form</field>
+        <field name="model">model.name</field>
+        <field name="arch" type="xml">
+            <form string="Title">
+                <header>
+                    <button name="action_confirm" string="Confirm" type="object"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="field1"/>
+                        </group>
+                        <group>
+                            <field name="field2"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Details">
+                            <field name="line_ids"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+</odoo>
+```
+
+### Action Naming
+- **ID format**: `action_{model}` or `action_{model}_{purpose}`
+- Example: `action_sale_order`, `action_sale_order_report`
+
+### Menu Naming
+- **ID format**: `menu_{model}` or `menu_{module}_{purpose}`
+- Use meaningful hierarchy
+
+## Security Standards
+
+### Access Rights (ir.model.access.csv)
+```csv
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_model_user,model.user,model_model_name,base.group_user,1,0,0,0
+access_model_manager,model.manager,model_model_name,base.group_system,1,1,1,1
+```
+
+**Rules:**
+- One line per group
+- Clear naming: `access_{model}_{group}`
+- User group: Usually read-only (1,0,0,0)
+- Manager group: Full access (1,1,1,1)
+
+### Record Rules
+```xml
+<record id="rule_model_own" model="ir.rule">
+    <field name="name">Own Records Only</field>
+    <field name="model_id" ref="model_model_name"/>
+    <field name="domain_force">[('user_id', '=', user.id)]</field>
+    <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+</record>
+```
+
+**Rules:**
+- Use domain for filtering
+- Apply to specific groups
+- Test thoroughly
+- Document complex domains
+
+## Data Files
+
+### Sequencing
+Order in `__manifest__.py` matters:
+```python
+'data': [
+    'security/module_security.xml',      # Groups first
+    'security/ir.model.access.csv',      # Access rights
+    'data/module_data.xml',              # Master data
+    'views/model_views.xml',             # Views
+    'views/menu_views.xml',              # Menus last
+]
+```
+
+### Data File Best Practices
+- Use `<odoo noupdate="1">` for demo/initial data
+- Use `<odoo>` for updateable definitions (views, menus)
+- Keep data records organized by type
+- Use external IDs consistently
+
+## Performance Best Practices
+
+### ORM Usage
+```python
+# GOOD: Use mapped
+total = sum(records.mapped('amount'))
+
+# BAD: Loop with individual access
+total = sum([r.amount for r in records])
+
+# GOOD: Batch operations
+records.write({'state': 'done'})
+
+# BAD: Individual writes
+for record in records:
+    record.write({'state': 'done'})
+
+# GOOD: Read in batch
+values = records.read(['field1', 'field2'])
+
+# BAD: Multiple queries
+for record in records:
+    val1 = record.field1
+    val2 = record.field2
+```
+
+### SQL Constraints vs Python
+- Prefer SQL constraints for simple validations
+- Use Python constraints for complex business logic
+- Always provide clear error messages
+
+### Search Optimization
+```python
+# GOOD: Use domain efficiently
+records = self.search([('state', '=', 'draft')], limit=10)
+
+# GOOD: Count without reading records
+count = self.search_count([('state', '=', 'draft')])
+
+# GOOD: Check existence
+exists = self.search([('name', '=', value)], limit=1)
+```
+
+## Translation and i18n
+
+### Translatable Strings
+```python
+from odoo import _, _lt
+
+# Use _ for translatable strings
+raise ValidationError(_("This field is required"))
+
+# Use _lt for lazy translation (class-level)
+_name = 'sale.order'
+_description = _lt('Sales Order')
+```
+
+### XML Translation
+```xml
+<field name="name">String to translate</field>
+```
+All user-facing strings in XML are automatically translatable.
+
+## Testing Standards
+
+### Test Structure
+```python
+from odoo.tests import TransactionCase, tagged
+
+@tagged('post_install', '-at_install')
+class TestMyModel(TransactionCase):
+    
+    def setUp(self):
+        super(TestMyModel, self).setUp()
+        self.Model = self.env['my.model']
+    
+    def test_create(self):
+        record = self.Model.create({'name': 'Test'})
+        self.assertTrue(record)
+        self.assertEqual(record.name, 'Test')
+```
+
+## Common Pitfalls to Avoid
+
+### ❌ DON'T
+```python
+# Don't use direct SQL unless absolutely necessary
+self.env.cr.execute("SELECT * FROM table")
+
+# Don't use time.sleep()
+time.sleep(5)
+
+# Don't modify self in computed methods
+@api.depends('field')
+def _compute_x(self):
+    self.field = value  # Wrong!
+
+# Don't use global variables
+GLOBAL_VAR = {}
+
+# Don't commit inside a method
+self.env.cr.commit()  # Never do this
+```
+
+### ✅ DO
+```python
+# Use ORM
+records = self.env['model'].search([...])
+
+# Use proper computed field pattern
+@api.depends('field')
+def _compute_x(self):
+    for record in self:
+        record.computed_field = record.field * 2
+
+# Use proper caching
+from odoo.tools import ormcache
+@ormcache('arg1', 'arg2')
+def cached_method(self, arg1, arg2):
+    return expensive_computation()
+```
+
+## Module Dependencies
+
+### Dependency Rules
+- Only depend on what you actually use
+- Prefer base modules over custom modules
+- Document why each dependency exists
+- Consider dependency order (base before specialized)
+
+### Common Dependencies
+```python
+'depends': [
+    'base',           # Always needed
+    'mail',           # For messaging/chatter
+    'web',            # For web interface features
+    'portal',         # For portal access
+    'website',        # For website features
+    'sale',           # For sales functionality
+]
+```
+
+## Version Compatibility
+
+### Writing Version-Aware Code
+- Check Odoo version when using new features
+- Use version-specific imports carefully
+- Test on target version
+- Document version requirements
+
+### Version-Specific Notes
+- **17.0**: Stable, widely deployed
+- **18.0**: Incremental improvements
+- **19.0**: Latest features, may have breaking changes
+
+## Summary Checklist
+
+Before committing Odoo code, verify:
+- ✅ Model names use dots, not underscores
+- ✅ Field names follow conventions (_id, _ids, is_, has_)
+- ✅ All strings are translatable
+- ✅ Security rules are defined
+- ✅ Views follow naming conventions
+- ✅ No SQL injection risks
+- ✅ No direct SQL unless justified
+- ✅ Proper use of ORM methods
+- ✅ Decorators in correct order
+- ✅ Methods properly documented
+- ✅ Tests written for critical functionality
+- ✅ Manifest dependencies are minimal and justified
+- ✅ Code follows PEP 8
+- ✅ No hardcoded values (use configuration/parameters)
