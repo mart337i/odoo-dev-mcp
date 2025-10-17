@@ -14,14 +14,28 @@ Complete guide to set up and use the Odoo Development MCP Server with OpenCode.
 
 Navigate to the project directory and install required packages:
 
+#### Option A: Using uv (Recommended)
+
 ```bash
 cd /path/to/odoo-dev-mcp
 
-# Using uv (recommended)
-uv sync
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 
-# OR using pip
+# Install project dependencies
+uv sync
+```
+
+#### Option B: Using pip
+
+```bash
+cd /path/to/odoo-dev-mcp
+
+# Install mcp package
 pip install "mcp[cli]"
+# or
+python3 -m pip install mcp
 ```
 
 ### Step 2: Test the Server
@@ -42,9 +56,9 @@ You should see:
 
 Create or edit your OpenCode configuration file:
 
-**Location**: `.opencode.jsonc` in your workspace root or `~/.opencode/config.jsonc` for global config
+**Location**: `~/.opencode/config.jsonc` for global config (recommended)
 
-**Configuration**:
+#### Configuration Option A: Using uv (Recommended)
 
 ```jsonc
 {
@@ -52,7 +66,30 @@ Create or edit your OpenCode configuration file:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "enabled": true,
+      "environment": {
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+**Important**: 
+- Replace `/absolute/path/to/odoo-dev-mcp` with your actual path
+- Replace `/home/user` in PATH with your actual home directory path
+- Use absolute paths (no `~` or relative paths)
+
+#### Configuration Option B: Using Python directly
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "odoo-dev": {
+      "type": "local",
+      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"
@@ -62,20 +99,7 @@ Create or edit your OpenCode configuration file:
 }
 ```
 
-**Using uv (alternative)**:
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "odoo-dev": {
-      "type": "local",
-      "command": ["uv", "run", "--directory", "/absolute/path/to/odoo-dev-mcp", "odoo_mcp_server.py"],
-      "enabled": true
-    }
-  }
-}
-```
+**Note**: Requires `mcp` package to be installed via pip first.
 
 ## Verification
 
@@ -90,39 +114,49 @@ Create or edit your OpenCode configuration file:
 In OpenCode chat, try these commands:
 
 ```
-@odoo-dev get current Odoo version
+Get current Odoo version
 ```
 
-You should see a response about the current version (default: 19.0).
+or
+
+```
+Search Odoo documentation for "models"
+```
+
+You should see responses showing the server is working. Note: You don't need to use `@odoo-dev` prefix - the tools are available directly to Claude in OpenCode.
 
 ## Usage in OpenCode
+
+The MCP server tools are automatically available to Claude in OpenCode. You can use natural language to invoke them.
 
 ### Basic Commands
 
 #### 1. Set Odoo Version
 ```
-@odoo-dev set Odoo version to 19.0
+Set Odoo version to 19.0
 ```
 
 #### 2. Search Documentation
 ```
-@odoo-dev search documentation for "computed fields"
+Search Odoo documentation for "computed fields"
+How do I use fields.Command to link records?
 ```
 
 #### 3. Get Development Guidelines
 ```
-@odoo-dev get development guidelines for models
+Get development guidelines for models
+Show me Odoo development best practices
 ```
 
 #### 4. Create Module
 ```
-@odoo-dev create an Odoo module called "inventory_custom" 
+Create an Odoo module called "inventory_custom" 
 with display name "Custom Inventory" and description "Custom inventory features"
 ```
 
 #### 5. Create Model
 ```
-@odoo-dev create a model inventory.custom.product with fields:
+Create a model inventory.custom.product with fields:
 - name (char, required)
 - quantity (integer)
 - price (float)
@@ -131,58 +165,62 @@ with display name "Custom Inventory" and description "Custom inventory features"
 
 #### 6. Create View
 ```
-@odoo-dev create a form view for inventory.custom.product 
+Create a form view for inventory.custom.product 
 with fields: name, quantity, price, supplier_id
 ```
 
 #### 7. Create Security
 ```
-@odoo-dev create security rules for inventory.custom.product 
+Create security rules for inventory.custom.product 
 in module inventory_custom
 ```
 
 ### Access Resources
 
+MCP resources are available through natural language requests:
+
 #### Documentation
 ```
-@odoo-dev show me odoo://docs/19.0/reference/backend/orm
+Show me the ORM documentation for Odoo 19.0
+Access odoo://docs/19.0/reference/backend/orm
 ```
 
 #### Development Rules
 ```
-@odoo-dev show me odoo://rules/odoo-development
+Show me Odoo development rules
+What are the naming conventions for Odoo?
 ```
 
 #### All Guidelines
 ```
-@odoo-dev show me odoo://rules/all
+Show me all development guidelines
+Access odoo://rules/all
 ```
 
 ### Use Prompts
 
 #### Develop Feature
 ```
-@odoo-dev /develop_odoo_feature "task management with priorities and deadlines"
+Help me develop an Odoo feature for task management with priorities and deadlines
 ```
 
 #### Debug Error
 ```
-@odoo-dev /debug_odoo_error "ValidationError: Missing required field 'name'" 
-context: "Creating a new record in custom model"
+Debug this Odoo error: "ValidationError: Missing required field 'name'" 
+Context: Creating a new record in custom model
 ```
 
 #### Review Code
 ```
-@odoo-dev /review_odoo_code "
+Review this Odoo code:
 class MyModel(models.Model):
     _name = 'my.model'
     field1 = fields.Char()
-"
 ```
 
 #### Upgrade Module
 ```
-@odoo-dev /upgrade_odoo_module "sale_custom" from_version: "17.0" to_version: "19.0"
+Help me upgrade module "sale_custom" from version 17.0 to 19.0
 ```
 
 ## Advanced Configuration
@@ -327,23 +365,26 @@ title, author_id, category_id, available
 
 ## Tips for OpenCode Usage
 
-### 1. Use @ Mentions
-Always prefix commands with `@odoo-dev` to direct queries to the MCP server:
+### 1. Natural Language Queries
+The MCP tools are automatically available to Claude in OpenCode. Just ask naturally:
 ```
-@odoo-dev [your command]
+Search Odoo documentation for "Many2many fields"
+Create an Odoo module for inventory management
+How do I use fields.Command?
 ```
 
 ### 2. Reference Resources
-Access documentation and rules directly:
+Access documentation and rules through natural requests:
 ```
-@odoo-dev show odoo://docs/19.0/reference/backend/orm
-@odoo-dev show odoo://rules/odoo-development
+Show me the ORM documentation
+What are the Odoo development best practices?
+Access the security documentation for Odoo 19.0
 ```
 
 ### 3. Multi-line Commands
-OpenCode supports multi-line input. Use Shift+Enter for new lines:
+OpenCode supports multi-line input:
 ```
-@odoo-dev create model library.borrowing with fields:
+Create model library.borrowing with fields:
 - book_id (many2one, library.book, required)
 - member_id (many2one, res.partner, required)
 - borrow_date (date, required)
@@ -359,8 +400,8 @@ OpenCode supports multi-line input. Use Shift+Enter for new lines:
 ### 5. Context Awareness
 The server remembers your current Odoo version throughout the session:
 ```
-@odoo-dev set version to 18.0
-@odoo-dev create model test.model with name field
+Set version to 18.0
+Create model test.model with name field
 # Model will be generated for Odoo 18.0
 ```
 
@@ -480,21 +521,18 @@ The server remembers your current Odoo version throughout the session:
 }
 ```
 
-### With UV
+### With UV (Recommended)
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": [
-        "uv", 
-        "run", 
-        "--directory", 
-        "/home/user/odoo-dev-mcp",
-        "odoo_mcp_server.py"
-      ],
-      "enabled": true
+      "command": ["uv", "run", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "enabled": true,
+      "environment": {
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     }
   }
 }
@@ -529,9 +567,10 @@ The server remembers your current Odoo version throughout the session:
 
 ### In OpenCode
 ```
-@odoo-dev help me with [your question]
-@odoo-dev what can you do?
-@odoo-dev show me examples
+What Odoo development tools do you have available?
+Show me examples of using the Odoo MCP server
+How do I create an Odoo module?
+Search the documentation for "fields.Command"
 ```
 
 ### Check Documentation
@@ -552,25 +591,25 @@ mcp dev odoo_mcp_server.py
 
 | Task | Command |
 |------|---------|
-| Set version | `@odoo-dev set version to 19.0` |
-| Search docs | `@odoo-dev search for "orm methods"` |
-| Get guidelines | `@odoo-dev get guidelines for models` |
-| Create module | `@odoo-dev create module "name" ...` |
-| Create model | `@odoo-dev create model name.model ...` |
-| Create view | `@odoo-dev create form view for ...` |
-| Add security | `@odoo-dev create security for ...` |
-| Review code | `@odoo-dev review this: [code]` |
-| View rules | `@odoo-dev show odoo://rules/all` |
-| Debug error | `@odoo-dev debug error: [error]` |
+| Set version | `Set Odoo version to 19.0` |
+| Search docs | `Search documentation for "orm methods"` |
+| Get guidelines | `Get development guidelines for models` |
+| Create module | `Create module "name" with description...` |
+| Create model | `Create model name.model with fields...` |
+| Create view | `Create form view for model.name` |
+| Add security | `Create security rules for model.name` |
+| Review code | `Review this Odoo code: [code]` |
+| View rules | `Show me Odoo development rules` |
+| Debug error | `Debug this error: [error]` |
 
 ## Success Indicators
 
-✅ Server shows in OpenCode MCP list
-✅ `@odoo-dev` responds to queries
-✅ Can access documentation resources
+✅ Server shows as running (check with `ps aux | grep odoo_mcp`)
+✅ Claude responds to Odoo-related queries
+✅ Can search documentation: "Search for fields.Command"
 ✅ Can generate Odoo code
 ✅ Code includes naming convention warnings
-✅ Guidelines accessible on demand
+✅ Guidelines accessible: "Get development guidelines"
 
 ## Next Steps
 

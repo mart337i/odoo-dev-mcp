@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server for Odoo module development with AI assistance. Provides version-aware documentation access (17.0, 18.0, 19.0), intelligent code generation, and development workflow automation.
 
+**🚀 [Quick Start](QUICK_START.md)** | **📖 [OpenCode Setup](OPENCODE_SETUP.md)** | **🔧 [Troubleshooting](TROUBLESHOOTING.md)** | **📋 [Changelog](CHANGELOG.md)**
+
 ## Features
 
 - **📚 Documentation Access**: 302+ Odoo documentation files searchable across all versions
@@ -54,7 +56,9 @@ pip install "mcp[cli]"
 
 **📖 [Complete OpenCode Setup Guide →](OPENCODE_SETUP.md)**
 
-Quick setup - add to `.opencode.jsonc`:
+Quick setup - add to `~/.opencode/config.jsonc`:
+
+#### Option 1: Using uv (Recommended)
 
 ```jsonc
 {
@@ -62,18 +66,49 @@ Quick setup - add to `.opencode.jsonc`:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
-      "enabled": true
+      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "enabled": true,
+      "environment": {
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      }
     }
   }
 }
 ```
 
+First, install dependencies:
+```bash
+cd /path/to/odoo-dev-mcp
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync
+```
+
+#### Option 2: Using Python directly
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "odoo-dev": {
+      "type": "local",
+      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "enabled": true,
+      "environment": {
+        "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"
+      }
+    }
+  }
+}
+```
+
+Note: Requires `pip install mcp` first.
+
 Then use in OpenCode:
 ```
-@odoo-dev set Odoo version to 19.0
-@odoo-dev create model library.book with fields: name, author
-@odoo-dev show odoo://rules/odoo-development
+Search Odoo documentation for "fields.Command"
+Set Odoo version to 19.0
+Create model library.book with fields: name, author
+Get development guidelines
 ```
 
 **See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for complete guide with examples, troubleshooting, and workflows.**
