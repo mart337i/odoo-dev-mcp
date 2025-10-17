@@ -762,3 +762,7 @@ Reference guidelines: odoo://rules/odoo-development
 
 Provide specific suggestions for improvement.
 """
+
+
+if __name__ == "__main__":
+    mcp.run()
