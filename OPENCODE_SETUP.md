@@ -66,7 +66,7 @@ Create or edit your OpenCode configuration file:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "odoo_mcp_server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"

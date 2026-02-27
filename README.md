@@ -2,7 +2,7 @@
 
 A Model Context Protocol (MCP) server for Odoo module development with AI assistance. Provides version-aware documentation access (17.0, 18.0, 19.0), intelligent code generation, and development workflow automation.
 
-**🚀 [Quick Start](QUICK_START.md)** | **📖 [OpenCode Setup](OPENCODE_SETUP.md)** | **🔧 [Troubleshooting](TROUBLESHOOTING.md)** | **📋 [Changelog](CHANGELOG.md)**
+**🚀 [Quick Start](QUICK_START.md)** | **📖 [OpenCode Setup](OPENCODE_SETUP.md)** | **🧪 [Testing Guide](TESTING.md)** | **🔧 [Troubleshooting](TROUBLESHOOTING.md)** | **📋 [Changelog](CHANGELOG.md)**
 
 ## Features
 
