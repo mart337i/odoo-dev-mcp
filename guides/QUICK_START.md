@@ -18,7 +18,7 @@ Edit `~/.opencode/config.jsonc`:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -85,17 +85,17 @@ Debug this error: ValidationError in model creation
 ## 📚 More Help
 
 - Full setup: [OPENCODE_SETUP.md](OPENCODE_SETUP.md)
-- All features: [README.md](README.md)
+- All features: [../README.md](../README.md)
 - Troubleshooting: See OPENCODE_SETUP.md § Troubleshooting
 
 ## 🐛 Not Working?
 
 ```bash
 # Test the server
-python test_server.py
+python -m tests.test_server
 
 # Check if running
-ps aux | grep odoo_mcp_server
+ps aux | grep odoo_mcp
 
 # Verify uv is installed
 which uv

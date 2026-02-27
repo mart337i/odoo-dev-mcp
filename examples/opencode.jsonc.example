@@ -3,7 +3,7 @@
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"

@@ -5,8 +5,8 @@
 **NEVER** run the MCP server directly from the terminal:
 ```bash
 # ❌ WRONG - This will cause JSON parsing errors
-python odoo_mcp_server.py
-uv run odoo_mcp_server.py
+python src/odoo_mcp/server.py
+uv run src/odoo_mcp/server.py
 ```
 
 MCP servers communicate via JSON-RPC over stdin/stdout and must be run through an MCP client.
@@ -19,10 +19,11 @@ Test all functionality without starting the MCP server:
 
 ```bash
 # Using Python directly
-python test_server.py
+python -m tests.test_server
+python tests/test_server.py
 
 # Using uv
-uv run test_server.py
+uv run tests/test_server.py
 ```
 
 This will verify:
@@ -41,7 +42,7 @@ The MCP Inspector provides an interactive testing environment:
 pip install "mcp[cli]"
 
 # Run inspector
-mcp dev odoo_mcp_server.py
+mcp dev src/odoo_mcp/server.py
 ```
 
 ### Option 3: Configure in an MCP Client
@@ -49,7 +50,7 @@ mcp dev odoo_mcp_server.py
 The proper way to use the server:
 
 #### For Claude Desktop
-See [README.md](README.md) for configuration instructions.
+See [../README.md](../README.md) for configuration instructions.
 
 #### For OpenCode
 See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for configuration instructions.
@@ -58,7 +59,7 @@ See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for configuration instructions.
 
 ### Error: "EOF while parsing a value"
 **Cause**: Running the MCP server directly from terminal  
-**Solution**: Use `python test_server.py` instead, or configure in an MCP client
+**Solution**: Use `python -m tests.test_server` instead, or configure in an MCP client
 
 ### Error: "Invalid JSON: EOF while parsing"
 **Cause**: Same as above - the server is receiving terminal input instead of JSON-RPC messages  
@@ -72,7 +73,7 @@ See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for configuration instructions.
 
 Before deploying or using the server, verify:
 
-- [ ] `python test_server.py` passes all tests
+- [ ] `python -m tests.test_server` passes all tests
 - [ ] Documentation files exist in `docs/17.0/`, `docs/18.0/`, `docs/19.0/`
 - [ ] Rule files exist in `rules/`
 - [ ] MCP client configuration is correct
@@ -92,7 +93,7 @@ Before deploying or using the server, verify:
    pip list | grep mcp
    ```
 
-3. **Test individual functions**: Edit `test_server.py` to test specific code
+3. **Test individual functions**: Edit `tests/test_server.py` to test specific code
 
 4. **Check MCP client logs**:
    - Claude Desktop: Check application logs
@@ -100,8 +101,8 @@ Before deploying or using the server, verify:
 
 ## Development Workflow
 
-1. Make changes to `odoo_mcp_server.py`
-2. Run `python test_server.py` to verify
+1. Make changes to `src/odoo_mcp/server.py`
+2. Run `python -m tests.test_server` to verify
 3. If tests pass, restart your MCP client
 4. Test the changes in the MCP client environment
 
@@ -110,6 +111,6 @@ Before deploying or using the server, verify:
 If you encounter issues:
 
 1. Run the test suite and note any failures
-2. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+2. Check [../.github/TROUBLESHOOTING.md](../.github/TROUBLESHOOTING.md)
 3. Verify your configuration matches the setup guides
-4. Check that all dependencies are installed: `pip install -r requirements.txt` or `uv sync`
+4. Check that all dependencies are installed: `uv sync` or `pip install mcp`
