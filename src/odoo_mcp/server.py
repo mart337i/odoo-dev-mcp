@@ -1,11 +1,14 @@
 from pathlib import Path
 from typing import Any
 import re
+import sys
 from mcp.server.fastmcp import FastMCP, Context
 
 ODOO_VERSIONS = ["17.0", "18.0", "19.0"]
-DOCS_BASE_PATH = Path(__file__).parent / "docs"
-RULES_BASE_PATH = Path(__file__).parent / "rules"
+# Adjust paths to account for src/odoo_mcp/ directory structure
+# Go up: odoo_mcp -> src -> root
+DOCS_BASE_PATH = Path(__file__).parent.parent.parent / "docs"
+RULES_BASE_PATH = Path(__file__).parent.parent.parent / "rules"
 
 mcp = FastMCP("Odoo Development Assistant")
 
@@ -764,5 +767,36 @@ Provide specific suggestions for improvement.
 """
 
 
+def main():
+    """Run the MCP server with proper error handling."""
+    # Check if stdin is a terminal (interactive mode)
+    if sys.stdin.isatty():
+        print("\n" + "=" * 70, file=sys.stderr)
+        print("⚠️  WARNING: MCP Server cannot be run directly from terminal!", file=sys.stderr)
+        print("=" * 70, file=sys.stderr)
+        print("\nMCP servers communicate via JSON-RPC over stdin/stdout.", file=sys.stderr)
+        print("They must be run through an MCP client.\n", file=sys.stderr)
+        print("To TEST the server functionality:", file=sys.stderr)
+        print("  python -m tests.test_server\n", file=sys.stderr)
+        print("To USE the server:", file=sys.stderr)
+        print("  1. Configure in Claude Desktop or OpenCode (see README.md)", file=sys.stderr)
+        print("  2. Or use MCP Inspector: mcp dev src/odoo_mcp/server.py\n", file=sys.stderr)
+        print("For more information, see:", file=sys.stderr)
+        print("  - README.md", file=sys.stderr)
+        print("  - guides/QUICK_START.md", file=sys.stderr)
+        print("  - guides/OPENCODE_SETUP.md\n", file=sys.stderr)
+        sys.exit(1)
+    
+    # Run the MCP server
+    try:
+        mcp.run()
+    except KeyboardInterrupt:
+        print("\nServer stopped by user", file=sys.stderr)
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nServer error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    mcp.run()
+    main()

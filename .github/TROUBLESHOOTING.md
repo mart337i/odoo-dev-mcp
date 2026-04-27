@@ -11,15 +11,15 @@ which uv
 
 # 2. Test the server
 cd /path/to/odoo-dev-mcp
-python test_server.py
+python -m tests.test_server
 # Expected: All tests pass with ✓ marks
 
 # 3. Check if server is running
-ps aux | grep odoo_mcp_server
+ps aux | grep odoo_mcp
 # Expected: Should show python process if OpenCode is running
 
 # 4. Try running server manually
-uv run odoo_mcp_server.py
+uv run src/odoo_mcp/server.py
 # Expected: Server starts and waits (Ctrl+C to stop)
 ```
 
@@ -36,10 +36,10 @@ uv run odoo_mcp_server.py
 1. **Check config path is absolute:**
    ```jsonc
    // ❌ WRONG
-   "command": ["uv", "run", "~/odoo-dev-mcp/odoo_mcp_server.py"]
+   "command": ["uv", "run", "~/odoo-dev-mcp/src/odoo_mcp/server.py"]
    
    // ✅ CORRECT
-   "command": ["uv", "run", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"]
+   "command": ["uv", "run", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"]
    ```
 
 2. **Verify uv is in PATH:**
@@ -51,7 +51,7 @@ uv run odoo_mcp_server.py
 
 3. **Check file permissions:**
    ```bash
-   chmod +x /path/to/odoo-dev-mcp/odoo_mcp_server.py
+   chmod +x /path/to/odoo-dev-mcp/src/odoo_mcp/server.py
    ```
 
 4. **Restart OpenCode completely:**
@@ -106,7 +106,7 @@ uv run odoo_mcp_server.py
 3. **Test server manually:**
    ```bash
    cd /path/to/odoo-dev-mcp
-   python test_server.py
+   python -m tests.test_server
    ```
 
 ### Issue 4: "Documentation not found" Errors
@@ -179,20 +179,7 @@ The `pyproject.toml` should have:
 packages = ["."]
 ```
 
-### Issue 7: Deprecation Warning for dev-dependencies
-
-**Symptoms:**
-- Warning about tool.uv.dev-dependencies
-
-**Solution:**
-
-Already fixed in current version. The file uses:
-```toml
-[dependency-groups]
-dev = []
-```
-
-### Issue 8: Tools Not Available in OpenCode
+### Issue 7: Tools Not Available in OpenCode
 
 **Symptoms:**
 - Can't search documentation
@@ -203,7 +190,7 @@ dev = []
 
 1. **Check server is running:**
    ```bash
-   ps aux | grep odoo_mcp_server
+   ps aux | grep odoo_mcp
    ```
 
 2. **Restart OpenCode:**
@@ -228,7 +215,7 @@ dev = []
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -246,7 +233,7 @@ dev = []
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python3", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python3", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/home/user/odoo-dev-mcp"
@@ -262,11 +249,11 @@ Use this checklist to verify your installation:
 
 - [ ] uv is installed: `which uv`
 - [ ] Dependencies installed: `uv sync` completes
-- [ ] Tests pass: `python test_server.py` shows all ✓
+- [ ] Tests pass: `python -m tests.test_server` shows all ✓
 - [ ] Config file exists: `cat ~/.opencode/config.jsonc`
 - [ ] Config uses absolute paths (no ~ or relative paths)
 - [ ] PATH includes uv location
-- [ ] Server starts manually: `uv run odoo_mcp_server.py`
+- [ ] Server runs manually: `uv run src/odoo_mcp/server.py` (should show warning)
 - [ ] OpenCode restarted completely
 - [ ] Server appears in MCP list
 - [ ] Test query works: "What's the current Odoo version?"
@@ -274,13 +261,13 @@ Use this checklist to verify your installation:
 ## Getting More Help
 
 1. **Check the guides:**
-   - [QUICK_START.md](QUICK_START.md) - Fast setup
-   - [OPENCODE_SETUP.md](OPENCODE_SETUP.md) - Detailed guide
-   - [README.md](README.md) - Full documentation
+   - [guides/QUICK_START.md](../guides/QUICK_START.md) - Fast setup
+   - [guides/OPENCODE_SETUP.md](../guides/OPENCODE_SETUP.md) - Detailed guide
+   - [../README.md](../README.md) - Full documentation
 
 2. **Run diagnostics:**
    ```bash
-   python test_server.py
+   python -m tests.test_server
    ```
 
 3. **Check OpenCode logs:**
@@ -305,7 +292,7 @@ Collect this information:
 2. **Server test:**
    ```bash
    cd /path/to/odoo-dev-mcp
-   python test_server.py
+   python -m tests.test_server
    ```
 
 3. **OpenCode logs:**

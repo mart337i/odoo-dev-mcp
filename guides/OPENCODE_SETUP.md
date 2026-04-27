@@ -43,7 +43,7 @@ python3 -m pip install mcp
 Verify the server works correctly:
 
 ```bash
-python test_server.py
+python -m tests.test_server
 ```
 
 You should see:
@@ -66,7 +66,7 @@ Create or edit your OpenCode configuration file:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -89,7 +89,7 @@ Create or edit your OpenCode configuration file:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"
@@ -235,7 +235,7 @@ If you work with multiple Odoo versions, you can create separate server instance
   "mcp": {
     "odoo-17": {
       "type": "local",
-      "command": ["python", "/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "DEFAULT_ODOO_VERSION": "17.0"
@@ -243,7 +243,7 @@ If you work with multiple Odoo versions, you can create separate server instance
     },
     "odoo-19": {
       "type": "local",
-      "command": ["python", "/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "DEFAULT_ODOO_VERSION": "19.0"
@@ -263,7 +263,7 @@ Add custom paths or settings:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/path/to/odoo-dev-mcp",
@@ -285,7 +285,7 @@ Create `.opencode.jsonc` in your Odoo project workspace:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "${workspaceFolder}/../odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "${workspaceFolder}/../odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "ODOO_VERSION": "19.0"
@@ -301,23 +301,23 @@ Create `.opencode.jsonc` in your Odoo project workspace:
 
 #### Step 1: Set Version
 ```
-@odoo-dev set version to 19.0
+Set version to 19.0
 ```
 
 #### Step 2: Get Guidelines
 ```
-@odoo-dev get development guidelines for general
+Get development guidelines for general
 ```
 
 #### Step 3: Create Module
 ```
-@odoo-dev create module "library_management" with display name "Library Management"
+Create module "library_management" with display name "Library Management"
 and description "Complete library management system"
 ```
 
 #### Step 4: Create Models
 ```
-@odoo-dev create model library.book with fields:
+Create model library.book with fields:
 - title (char, required)
 - isbn (char)
 - author_id (many2one to res.partner)
@@ -328,7 +328,7 @@ and description "Complete library management system"
 ```
 
 ```
-@odoo-dev create model library.category with fields:
+Create model library.category with fields:
 - name (char, required)
 - description (text)
 - parent_id (many2one to library.category)
@@ -336,31 +336,31 @@ and description "Complete library management system"
 
 #### Step 5: Create Views
 ```
-@odoo-dev create form view for library.book with all fields
+Create form view for library.book with all fields
 ```
 
 ```
-@odoo-dev create tree view for library.book with fields: 
+Create tree view for library.book with fields: 
 title, author_id, isbn, available
 ```
 
 ```
-@odoo-dev create search view for library.book with fields:
+Create search view for library.book with fields:
 title, author_id, category_id, available
 ```
 
 #### Step 6: Add Security
 ```
-@odoo-dev create security rules for library.book in library_management
+Create security rules for library.book in library_management
 ```
 
 ```
-@odoo-dev create security rules for library.category in library_management
+Create security rules for library.category in library_management
 ```
 
 #### Step 7: Review Generated Code
 ```
-@odoo-dev review this code: [paste generated model code]
+Review this code: [paste generated model code]
 ```
 
 ## Tips for OpenCode Usage
@@ -421,7 +421,7 @@ Create model test.model with name field
 3. **Test Server Manually**
    ```bash
    cd /path/to/odoo-dev-mcp
-   python odoo_mcp_server.py
+   python -m tests.test_server
    ```
 
 4. **Check OpenCode Logs**
@@ -439,12 +439,12 @@ Create model test.model with name field
 
 2. **Verify Server Health**
    ```bash
-   python test_server.py
+   python -m tests.test_server
    ```
 
 3. **Check Paths in Config**
    - Use absolute paths
-   - Verify files exist: `ls /path/to/odoo-dev-mcp/odoo_mcp_server.py`
+   - Verify files exist: `ls /path/to/odoo-dev-mcp/src/odoo_mcp/server.py`
 
 ### Import Errors
 
@@ -457,7 +457,7 @@ Create model test.model with name field
 
 2. **Use Virtual Environment**
    ```jsonc
-   "command": ["/path/to/venv/bin/python", "/path/to/odoo_mcp_server.py"]
+   "command": ["/path/to/venv/bin/python", "/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"]
    ```
 
 ### Documentation Not Found
@@ -483,7 +483,7 @@ Create model test.model with name field
 
 2. **Test Rules Access**
    ```
-   @odoo-dev show odoo://rules/all
+   Show odoo://rules/all
    ```
 
 ## Example .opencode.jsonc Templates
@@ -495,7 +495,7 @@ Create model test.model with name field
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true
     }
   }
@@ -509,7 +509,7 @@ Create model test.model with name field
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/home/user/odoo-dev-mcp",
@@ -528,7 +528,7 @@ Create model test.model with name field
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/home/user/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/home/user/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -575,16 +575,17 @@ Search the documentation for "fields.Command"
 
 ### Check Documentation
 - This file: `OPENCODE_SETUP.md`
-- Main README: `README.md`
-- Rules: `rules/odoo-development.mdc`
+- Main README: `../README.md`
+- Rules: `../rules/odoo-development.mdc`
+- Testing: `TESTING.md`
 
 ### Test Commands
 ```bash
 # Test server
-python test_server.py
+python -m tests.test_server
 
 # Test with MCP inspector
-mcp dev odoo_mcp_server.py
+mcp dev src/odoo_mcp/server.py
 ```
 
 ## Quick Reference Card
@@ -623,7 +624,7 @@ mcp dev odoo_mcp_server.py
 ---
 
 **Need Help?** 
-- Test the server: `python test_server.py`
+- Test the server: `python -m tests.test_server`
 - Check logs in OpenCode Output panel
 - Verify paths in configuration
 - Review troubleshooting section above

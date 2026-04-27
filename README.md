@@ -2,7 +2,7 @@
 
 A Model Context Protocol (MCP) server for Odoo module development with AI assistance. Provides version-aware documentation access (17.0, 18.0, 19.0), intelligent code generation, and development workflow automation.
 
-**🚀 [Quick Start](QUICK_START.md)** | **📖 [OpenCode Setup](OPENCODE_SETUP.md)** | **🔧 [Troubleshooting](TROUBLESHOOTING.md)** | **📋 [Changelog](CHANGELOG.md)**
+**🚀 [Quick Start](guides/QUICK_START.md)** | **📖 [OpenCode Setup](guides/OPENCODE_SETUP.md)** | **🧪 [Testing Guide](guides/TESTING.md)** | **🔧 [Troubleshooting](.github/TROUBLESHOOTING.md)** | **📋 [Guides Index](guides/README.md)** | **📝 [Changelog](CHANGELOG.md)**
 
 ## Features
 
@@ -28,7 +28,7 @@ pip install "mcp[cli]"
 
 1. **Quick Install** (Recommended):
    ```bash
-   mcp install odoo_mcp_server.py --name "Odoo Dev"
+   mcp install src/odoo_mcp/server.py --name "Odoo Dev"
    ```
 
 2. **Manual Install**:
@@ -44,7 +44,7 @@ pip install "mcp[cli]"
      "mcpServers": {
        "odoo-dev": {
          "command": "python",
-         "args": ["/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"]
+         "args": ["/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"]
        }
      }
    }
@@ -54,7 +54,7 @@ pip install "mcp[cli]"
 
 ### For OpenCode
 
-**📖 [Complete OpenCode Setup Guide →](OPENCODE_SETUP.md)**
+**📖 [Complete OpenCode Setup Guide →](guides/OPENCODE_SETUP.md)**
 
 Quick setup - add to `~/.opencode/config.jsonc`:
 
@@ -66,7 +66,7 @@ Quick setup - add to `~/.opencode/config.jsonc`:
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -91,7 +91,7 @@ uv sync
   "mcp": {
     "odoo-dev": {
       "type": "local",
-      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/odoo_mcp_server.py"],
+      "command": ["python3", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
         "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"
@@ -100,6 +100,8 @@ uv sync
   }
 }
 ```
+
+See [examples/opencode.jsonc.example](examples/opencode.jsonc.example) for a complete working example.
 
 Note: Requires `pip install mcp` first.
 
