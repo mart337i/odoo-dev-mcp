@@ -30,8 +30,10 @@ try:
         'mcp', 'ODOO_VERSIONS', 'current_version',
         'get_all_rst_files', 'get_documentation_index',
         'get_documentation_content', 'get_development_rules',
-        'set_odoo_version', 'get_current_version',
-        'search_documentation', 'get_development_guidelines'
+        'set_odoo_version', 'get_current_version', 'get_documentation_url',
+        'search_documentation', 'get_development_guidelines', 'create_upgrade_script',
+        'explain_odoo_error', 'plan_odoo_feature',
+        'create_base_automation', 'layout_module_dependencies'
     ]
     
     for attr in expected_exports:
@@ -43,7 +45,7 @@ try:
     print("\n" + "=" * 70)
     print("✓ All import paths are correct!")
     print("=" * 70)
-    print("\nNext step: Install dependencies with 'uv sync' to run full tests")
+    print("\nNext step: Run full tests with 'uv run python -m tests.test_server'")
     
 except Exception as e:
     print(f"\n✗ Import failed: {e}")

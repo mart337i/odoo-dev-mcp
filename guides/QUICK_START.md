@@ -49,6 +49,7 @@ You should see: "Current Odoo development version: 19.0"
 Search Odoo documentation for "fields.Command"
 How do I link records using Many2many fields?
 Show me the ORM reference for Odoo 19.0
+Get documentation URL for reference/backend/orm
 ```
 
 ### Code Generation
@@ -65,6 +66,10 @@ Create model library.book with fields:
 Create form view for library.book
 
 Create security rules for library.book in library_management
+
+Layout module dependencies for library_management with chatter and automated actions
+
+Create a base automation for library.book that runs on create or write and watches available
 ```
 
 ### Development Help
@@ -72,6 +77,8 @@ Create security rules for library.book in library_management
 Get development guidelines for models
 Review this Odoo code: [paste code]
 Debug this error: ValidationError in model creation
+Explain this Odoo error: [paste traceback]
+Create upgrade scripts for library_management from 17.0 to 19.0 with upgrade-util helper examples
 ```
 
 ## 🎯 Key Points
@@ -79,7 +86,7 @@ Debug this error: ValidationError in model creation
 1. **No @ mentions needed** - Just talk to Claude naturally
 2. **Tools work everywhere** - Available in all OpenCode sessions
 3. **Version-aware** - Set your Odoo version once, all code adapts
-4. **Full documentation** - 300+ Odoo docs files searchable
+4. **Official documentation links** - Uses `https://www.odoo.com/documentation/<version>/developer/reference.html`
 5. **Best practices** - Auto-included in generated code
 
 ## 📚 More Help
@@ -111,7 +118,7 @@ You: Set Odoo version to 19.0
 Claude: Odoo version set to 19.0
 
 You: How do I use fields.Command to link a record?
-Claude: [Searches documentation and provides answer with examples]
+Claude: [Searches the official reference catalog and provides Odoo documentation links]
 
 You: Create a model task.task with name and priority fields
 Claude: [Generates model with proper naming conventions and documentation links]
@@ -123,9 +130,11 @@ Claude: [Reviews against Odoo best practices and suggests improvements]
 ## 🎉 You're Ready!
 
 Start building Odoo modules with AI assistance. The server provides:
-- ✅ Smart documentation search
+- ✅ Smart official documentation link search
 - ✅ Version-aware code generation  
 - ✅ Best practices enforcement
+- ✅ Dependency ordering help
+- ✅ Version-aware automated action scaffolds
 - ✅ Naming convention warnings
 - ✅ Complete development workflows
 

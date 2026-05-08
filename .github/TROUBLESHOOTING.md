@@ -117,21 +117,17 @@ uv run src/odoo_mcp/server.py
 
 **Solutions:**
 
-1. **Verify docs directory exists:**
-   ```bash
-   ls /path/to/odoo-dev-mcp/docs/
-   # Should show: 17.0/ 18.0/ 19.0/
+1. **Verify official URL lookup works:**
+   ```
+   Get documentation URL for reference/backend/orm in Odoo 19.0
    ```
 
-2. **Check permissions:**
-   ```bash
-   chmod -R 755 /path/to/odoo-dev-mcp/docs/
-   ```
+2. **Use the official base URL pattern:**
+   `https://www.odoo.com/documentation/<version>/developer/reference.html`
 
-3. **Verify RST files:**
-   ```bash
-   find /path/to/odoo-dev-mcp/docs -name "*.rst" | wc -l
-   # Should show ~300 files
+3. **Search the reference catalog:**
+   ```
+   Search Odoo documentation for "security"
    ```
 
 ### Issue 5: uv Command Not Found

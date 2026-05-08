@@ -1,6 +1,12 @@
 # Odoo Documentation Files
 
-This directory contains Odoo documentation files organized by version.
+This directory contains legacy local Odoo documentation files organized by version.
+
+The MCP server now prefers official Odoo documentation URLs instead of local copies. The official developer reference URL pattern is:
+
+```text
+https://www.odoo.com/documentation/<version>/developer/reference.html
+```
 
 ## Structure
 
@@ -13,7 +19,7 @@ docs/
 
 ## Contents
 
-Each version directory contains:
+Each legacy version directory contains:
 - **howtos/** - Step-by-step guides for common tasks
 - **reference/** - Complete API and technical reference
   - backend/ - Python ORM, security, testing
@@ -25,11 +31,13 @@ Each version directory contains:
 
 ### Via MCP Server
 
-The MCP server provides access to all documentation:
+The MCP server provides official documentation links:
 
 ```
 Search Odoo documentation for "fields.Command"
 Show me ORM documentation for Odoo 19.0
+Get documentation URL for reference/backend/orm
+Search Odoo documentation for "base automation"
 How do I create computed fields?
 ```
 
@@ -45,12 +53,12 @@ ls docs/19.0/reference/backend/
 cat docs/19.0/reference/backend/orm.rst
 ```
 
-## File Count by Version
+## Legacy File Count by Version
 
 - **17.0**: 102 documentation files
 - **18.0**: 100 documentation files  
 - **19.0**: 100 documentation files
-- **Total**: 302+ searchable documentation files
+- **Total**: 302+ local fallback documentation files
 
 ## Common Topics
 
@@ -71,11 +79,12 @@ cat docs/19.0/reference/backend/orm.rst
 
 ## Searching Documentation
 
-The MCP server provides full-text search across all files:
+The MCP server searches a built-in official reference catalog and returns official Odoo URLs:
 
 1. **By topic**: "Search for computed fields"
 2. **By feature**: "How to use Many2many relationships"
 3. **By version**: "Show ORM docs for Odoo 18.0"
+4. **By URL**: "Get documentation URL for reference/backend/security"
 
 ## Version Differences
 
@@ -89,11 +98,7 @@ Always check the documentation for your target Odoo version.
 
 ## Contributing
 
-To add or update documentation:
-1. Place .rst files in appropriate version directory
-2. Follow existing directory structure
-3. Use proper reStructuredText formatting
-4. Test with MCP server search
+To update documentation behavior, update the official reference catalog in `src/odoo_mcp/server.py`. Local `.rst` files are fallback material only.
 
 ## Resources
 

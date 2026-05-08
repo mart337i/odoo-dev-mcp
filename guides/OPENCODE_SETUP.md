@@ -140,6 +140,7 @@ Set Odoo version to 19.0
 ```
 Search Odoo documentation for "computed fields"
 How do I use fields.Command to link records?
+Get documentation URL for reference/backend/orm
 ```
 
 #### 3. Get Development Guidelines
@@ -183,6 +184,7 @@ MCP resources are available through natural language requests:
 ```
 Show me the ORM documentation for Odoo 19.0
 Access odoo://docs/19.0/reference/backend/orm
+Get documentation URL for reference/backend/security in Odoo 19.0
 ```
 
 #### Development Rules
@@ -340,7 +342,7 @@ Create form view for library.book with all fields
 ```
 
 ```
-Create tree view for library.book with fields: 
+Create list view for library.book with fields:
 title, author_id, isbn, available
 ```
 
@@ -358,7 +360,16 @@ Create security rules for library.book in library_management
 Create security rules for library.category in library_management
 ```
 
-#### Step 7: Review Generated Code
+#### Step 7: Add Automation
+```
+Create a base automation for library.book that runs on create or write, watches available, and posts a message when availability changes
+```
+
+```
+Layout module dependencies for library_management with chatter, automated actions, and website portal integration
+```
+
+#### Step 8: Review Generated Code
 ```
 Review this code: [paste generated model code]
 ```
@@ -371,6 +382,7 @@ The MCP tools are automatically available to Claude in OpenCode. Just ask natura
 Search Odoo documentation for "Many2many fields"
 Create an Odoo module for inventory management
 How do I use fields.Command?
+Get documentation URL for reference/backend/orm
 ```
 
 ### 2. Reference Resources
@@ -462,16 +474,15 @@ Create model test.model with name field
 
 ### Documentation Not Found
 
-1. **Verify docs Directory**
-   ```bash
-   ls /path/to/odoo-dev-mcp/docs/
-   # Should show: 17.0/ 18.0/ 19.0/
+The server points to official Odoo documentation URLs and does not require local docs for normal use.
+
+1. **Test official documentation URLs**
+   ```
+   Get documentation URL for reference/backend/orm in Odoo 19.0
    ```
 
-2. **Check Permissions**
-   ```bash
-   chmod -R 755 /path/to/odoo-dev-mcp/docs/
-   ```
+2. **Check the base URL pattern**
+   `https://www.odoo.com/documentation/<version>/developer/reference.html`
 
 ### Rules Not Loading
 
@@ -540,19 +551,25 @@ Create model test.model with name field
 
 ## Features Available in OpenCode
 
-### All 8 Tools
+### All 14 Tools
 ✅ `set_odoo_version` - Version switching
 ✅ `get_current_version` - Version check
-✅ `search_documentation` - Doc search
+✅ `get_documentation_url` - Official Odoo documentation URL lookup
+✅ `search_documentation` - Official reference catalog search
 ✅ `get_development_guidelines` - Get rules
+✅ `explain_odoo_error` - Patterned Odoo traceback diagnosis
+✅ `create_upgrade_script` - Version-aware migration script scaffolding
+✅ `plan_odoo_feature` - Skill-informed implementation planning
+✅ `layout_module_dependencies` - Manifest dependency ordering
 ✅ `create_odoo_module` - Module generation
 ✅ `create_odoo_model` - Model creation
-✅ `create_odoo_view` - View generation
+✅ `create_odoo_view` - Safer version-aware view generation
 ✅ `create_security_rules` - Security setup
+✅ `create_base_automation` - Version-aware automated action XML
 
-### All 6 Resources
-✅ `odoo://docs/{version}/index` - Doc index
-✅ `odoo://docs/{version}/{path}` - Specific docs
+### All 5 Resources
+✅ `odoo://docs/{version}/index` - Official developer reference index
+✅ `odoo://docs/{version}/{path}` - Official documentation URL and metadata
 ✅ `odoo://rules/clean-code` - Clean code rules
 ✅ `odoo://rules/odoo-development` - Odoo standards
 ✅ `odoo://rules/all` - All guidelines

@@ -5,6 +5,26 @@ All notable changes to the Odoo Development MCP Server will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Documentation tools now prefer official Odoo developer reference URLs using `https://www.odoo.com/documentation/<version>/developer/reference.html`.
+- `search_documentation` now searches a built-in official reference catalog and returns stable Odoo documentation links instead of reading local `.rst` files.
+- Generated module, model, view, security, and prompt outputs now point to official Odoo documentation URLs.
+- `create_odoo_view` now generates version-aware collection views (`tree` for 17.0, `list` for 18.0/19.0), avoids fake menu parents, and includes view/action/security/test guardrails.
+
+### Added
+
+- `get_documentation_url` tool for direct official Odoo documentation URL lookup.
+- `plan_odoo_feature` tool for skill-informed implementation plans covering models, views, security, tests, and official references.
+- `create_base_automation` tool for version-aware automated action XML using `base.automation` and linked `ir.actions.server` records.
+- `layout_module_dependencies` tool for ordering and explaining Odoo manifest dependencies.
+- `create_upgrade_script` tool for version-aware `pre-migration.py`, `post-migration.py`, and `end-migration.py` scaffolds.
+- `create_upgrade_script` now includes verified `odoo.upgrade.util` examples for model, field, XML ID, module, SQL, and ORM migration helpers.
+- `explain_odoo_error` tool for patterned Odoo traceback diagnosis with likely area, root cause, minimal reproduction, and docs links.
+- Anchored documentation shortcuts for common Odoo topics like computed fields, record rules, access rights, controllers, testing, OWL, and upgrade scripts.
+
 ## [1.0.0] - 2026-02-27
 
 ### Added

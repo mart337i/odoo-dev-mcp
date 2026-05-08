@@ -30,24 +30,24 @@ from odoo_mcp.server import (
 async def test_resources():
     print("\n=== Testing Resources ===")
     
-    print(f"✓ Documentation base path: {DOCS_BASE_PATH}")
+    print(f"✓ Local documentation fallback path: {DOCS_BASE_PATH}")
     print(f"✓ Supported versions: {', '.join(ODOO_VERSIONS)}")
     print(f"✓ Current version: {current_version['value']}")
     
     for version in ODOO_VERSIONS:
         version_path = DOCS_BASE_PATH / version
         if version_path.exists():
-            print(f"✓ Found Odoo {version} documentation")
+            print(f"✓ Found local Odoo {version} documentation fallback")
             files = get_all_rst_files(version)
-            print(f"  - {len(files)} RST files available")
+            print(f"  - {len(files)} local RST fallback files available")
         else:
-            print(f"⚠ Odoo {version} documentation not found at {version_path}")
+            print(f"⚠ Local Odoo {version} documentation fallback not found at {version_path}")
     
     print("\nTesting resource access...")
     try:
         from odoo_mcp.server import get_documentation_index
         index = get_documentation_index("19.0")
-        print(f"✓ Documentation index retrieved ({len(index)} chars)")
+        print(f"✓ Official documentation index retrieved ({len(index)} chars)")
     except Exception as e:
         print(f"✗ Error accessing documentation: {e}")
 
@@ -58,7 +58,14 @@ def test_tools():
     tools = [
         "set_odoo_version",
         "get_current_version",
+        "get_documentation_url",
         "search_documentation",
+        "get_development_guidelines",
+        "create_upgrade_script",
+        "explain_odoo_error",
+        "plan_odoo_feature",
+        "create_base_automation",
+        "layout_module_dependencies",
         "create_odoo_module",
         "create_odoo_model",
         "create_odoo_view",
@@ -78,6 +85,74 @@ def test_tools():
     result = get_current_version()
     print(f"✓ get_current_version: {result}")
     
+    from odoo_mcp.server import (
+        get_documentation_url,
+        search_documentation,
+        create_upgrade_script,
+        explain_odoo_error,
+        plan_odoo_feature,
+        create_base_automation,
+        layout_module_dependencies,
+    )
+
+    result = get_documentation_url("reference/backend/orm#fields", "19.0")
+    assert "#fields" in result
+    print(f"✓ get_documentation_url: {result}")
+
+    result = search_documentation("record rules", "19.0")
+    assert "#record-rules" in result
+    print(f"✓ search_documentation: Generated {len(result)} chars")
+
+    result = create_upgrade_script(
+        module_name="equipment_rental",
+        from_version="17.0",
+        to_version="19.0",
+        rename_fields=[{"model": "equipment.rental", "old": "old_stage_id", "new": "stage_id"}],
+        rename_xmlids=[{"old": "equipment_rental.old_action", "new": "equipment_rental.action_equipment_rental"}],
+    )
+    assert "pre-migration.py" in result
+    assert "post-migration.py" in result
+    assert "end-migration.py" in result
+    assert "util.rename_field" in result
+    assert "util.rename_xmlid" in result
+    assert "util.recompute_fields" in result
+    assert "util.column_exists" in result
+    assert "util.module_deps_diff" in result
+    print(f"✓ create_upgrade_script: Generated {len(result)} chars")
+
+    result = explain_odoo_error("odoo.tools.convert.ParseError: while parsing view.xml: External ID not found in the system", version="19.0")
+    assert "XML" in result or "XML ID" in result
+    print(f"✓ explain_odoo_error: Generated {len(result)} chars")
+
+    result = plan_odoo_feature("Manage equipment rentals", module_name="equipment_rental")
+    assert "Security Pass" in result
+    print(f"✓ plan_odoo_feature: Generated {len(result)} chars")
+
+    result = create_base_automation(
+        automation_name="Archive inactive demos",
+        model_name="x.demo",
+        trigger="on_time",
+        action_type="object_write",
+        update_path="active",
+        update_boolean_value="false",
+        date_field="write_date",
+        delay=2,
+        delay_mode="before",
+        version="19.0",
+    )
+    assert "trg_date_range_mode" in result
+    assert "base_automation" in result
+    print(f"✓ create_base_automation: Generated {len(result)} chars")
+
+    result = layout_module_dependencies(
+        module_name="equipment_rental",
+        features=["automated activities and chatter"],
+        models=["project.task"],
+    )
+    assert "base_automation" in result
+    assert "mail" in result
+    print(f"✓ layout_module_dependencies: Generated {len(result)} chars")
+
     from odoo_mcp.server import create_odoo_module
     result = create_odoo_module(
         module_name="test_module",
@@ -99,9 +174,10 @@ def test_tools():
     from odoo_mcp.server import create_odoo_view
     result = create_odoo_view(
         model_name="test.model",
-        view_type="form",
+        view_type="tree",
         fields_to_display=["name", "test_field"]
     )
+    assert "<list>" in result
     print(f"✓ create_odoo_view: Generated {len(result)} chars")
     
     from odoo_mcp.server import create_security_rules
