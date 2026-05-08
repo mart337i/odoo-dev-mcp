@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-08
+
+### Added
+
+- Local Odoo environment context support through `ODOO_SOURCE`, `ODOO_BASE_COMMAND`, and `ODOO_TOOL_README`, exposed via `get_odoo_local_context()` and `odoo://local/context`.
+- OWL frontend planning and scaffold tools for Odoo components, client actions, field widgets, services, and Hoot tests.
+- Export/import/test coverage for the new OWL tool set.
+
+### Fixed
+
+- Redact sensitive local command and README values from local context output.
+- Escape generated OWL JavaScript/XML snippets and avoid undeclared default test props.
+- Detect nested local Odoo source layouts such as `odoo*/odoo-bin` and `enterprise-*`.
+
 ## [1.1.0] - 2026-05-08
 
 ### Changed

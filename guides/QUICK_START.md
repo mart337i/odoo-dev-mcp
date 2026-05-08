@@ -21,7 +21,10 @@ Edit `~/.opencode/config.jsonc`:
       "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
-        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin",
+        "ODOO_SOURCE": "/path/to/odoo",
+        "ODOO_BASE_COMMAND": "/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons",
+        "ODOO_TOOL_README": "/path/to/local-development/README.md"
       }
     }
   }
@@ -50,6 +53,7 @@ Search Odoo documentation for "fields.Command"
 How do I link records using Many2many fields?
 Show me the ORM reference for Odoo 19.0
 Get documentation URL for reference/backend/orm
+Get Odoo local context
 ```
 
 ### Code Generation
@@ -70,6 +74,10 @@ Create security rules for library.book in library_management
 Layout module dependencies for library_management with chatter and automated actions
 
 Create a base automation for library.book that runs on create or write and watches available
+
+Create an OWL component called Book Dashboard in library_management with orm service and local state
+
+Create an OWL client action called Book Dashboard in library_management
 ```
 
 ### Development Help

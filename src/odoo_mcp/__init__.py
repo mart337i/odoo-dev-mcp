@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server for Odoo module development with AI assist
 Provides version-aware documentation access, intelligent code generation, and development workflow automation.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 __author__ = "Martin Egeskov"
 
 from .server import (
@@ -18,13 +18,20 @@ from .server import (
     get_development_rules,
     set_odoo_version,
     get_current_version,
+    get_odoo_local_context,
     get_documentation_url,
     search_documentation,
     get_development_guidelines,
     create_upgrade_script,
     explain_odoo_error,
     plan_odoo_feature,
+    plan_owl_feature,
     create_base_automation,
+    create_owl_component,
+    create_owl_client_action,
+    create_owl_field_widget,
+    create_owl_service,
+    create_owl_test,
     layout_module_dependencies,
     create_odoo_module,
     create_odoo_model,
@@ -47,13 +54,20 @@ __all__ = [
     "get_development_rules",
     "set_odoo_version",
     "get_current_version",
+    "get_odoo_local_context",
     "get_documentation_url",
     "search_documentation",
     "get_development_guidelines",
     "create_upgrade_script",
     "explain_odoo_error",
     "plan_odoo_feature",
+    "plan_owl_feature",
     "create_base_automation",
+    "create_owl_component",
+    "create_owl_client_action",
+    "create_owl_field_widget",
+    "create_owl_service",
+    "create_owl_test",
     "layout_module_dependencies",
     "create_odoo_module",
     "create_odoo_model",

@@ -10,7 +10,9 @@ Usage:
 """
 
 import asyncio
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Ensure src is in path for imports to work
@@ -58,13 +60,20 @@ def test_tools():
     tools = [
         "set_odoo_version",
         "get_current_version",
+        "get_odoo_local_context",
         "get_documentation_url",
         "search_documentation",
         "get_development_guidelines",
         "create_upgrade_script",
         "explain_odoo_error",
         "plan_odoo_feature",
+        "plan_owl_feature",
         "create_base_automation",
+        "create_owl_component",
+        "create_owl_client_action",
+        "create_owl_field_widget",
+        "create_owl_service",
+        "create_owl_test",
         "layout_module_dependencies",
         "create_odoo_module",
         "create_odoo_model",
@@ -87,17 +96,65 @@ def test_tools():
     
     from odoo_mcp.server import (
         get_documentation_url,
+        get_odoo_local_context,
         search_documentation,
         create_upgrade_script,
         explain_odoo_error,
         plan_odoo_feature,
+        plan_owl_feature,
         create_base_automation,
+        create_owl_component,
+        create_owl_client_action,
+        create_owl_field_widget,
+        create_owl_service,
+        create_owl_test,
         layout_module_dependencies,
     )
 
     result = get_documentation_url("reference/backend/orm#fields", "19.0")
     assert "#fields" in result
     print(f"✓ get_documentation_url: {result}")
+
+    previous_env = {
+        name: os.environ.get(name)
+        for name in ["ODOO_SOURCE", "ODOO_BASE_COMMAND", "ODOO_TOOL_README"]
+    }
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_root = Path(temp_dir)
+            nested_odoo = source_root / "odoo19"
+            (nested_odoo / "addons").mkdir(parents=True)
+            (nested_odoo / "odoo").mkdir()
+            (nested_odoo / "odoo" / "addons").mkdir()
+            (nested_odoo / "odoo-bin").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+            (source_root / "enterprise-19.0").mkdir()
+            local_readme = source_root / "local-tools.md"
+            local_readme.write_text(
+                "Run with db_password = local-secret\nAPI_KEY: local-api-key\n",
+                encoding="utf-8",
+            )
+
+            os.environ["ODOO_SOURCE"] = str(source_root)
+            os.environ["ODOO_BASE_COMMAND"] = f"{nested_odoo}/odoo-bin -c /tmp/odoo.conf --db-password hunter2 --addons-path=/tmp/addons"
+            os.environ["ODOO_TOOL_README"] = str(local_readme)
+            result = get_odoo_local_context(include_readme_excerpt=True)
+        assert "ODOO_SOURCE" in result
+        assert "ODOO_BASE_COMMAND" in result
+        assert "ODOO_TOOL_README" in result
+        assert "--stop-after-init" in result
+        assert "odoo19/odoo-bin" in result
+        assert "enterprise-19.0" in result
+        assert "hunter2" not in result
+        assert "local-secret" not in result
+        assert "local-api-key" not in result
+        assert "***" in result
+    finally:
+        for name, value in previous_env.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    print(f"✓ get_odoo_local_context: Generated {len(result)} chars")
 
     result = search_documentation("record rules", "19.0")
     assert "#record-rules" in result
@@ -127,6 +184,76 @@ def test_tools():
     result = plan_odoo_feature("Manage equipment rentals", module_name="equipment_rental")
     assert "Security Pass" in result
     print(f"✓ plan_odoo_feature: Generated {len(result)} chars")
+
+    result = plan_owl_feature(
+        "Dashboard for equipment rentals",
+        module_name="equipment_rental",
+        integration_type="client_action",
+    )
+    assert "registry" in result
+    assert "web.assets_backend" in result
+    print(f"✓ plan_owl_feature: Generated {len(result)} chars")
+
+    result = create_owl_component(
+        component_name="Rental Dashboard",
+        module_name="equipment_rental",
+        props=["title"],
+        services=["orm", "notification"],
+        use_state=True,
+    )
+    assert "@odoo/owl" in result
+    assert "useService" in result
+    assert "equipment_rental.RentalDashboard" in result
+    print(f"✓ create_owl_component: Generated {len(result)} chars")
+
+    result = create_owl_component(
+        component_name="Escaped Component",
+        module_name="equipment_rental",
+        services=['orm"; alert(1)//'],
+    )
+    assert 'useService("orm\\"; alert(1)//")' in result
+    print(f"✓ create_owl_component escaping: Generated {len(result)} chars")
+
+    result = create_owl_client_action(
+        action_name="Rental <Dashboard> & Report",
+        module_name="equipment_rental",
+        action_tag='equipment_rental.dashboard"; alert(1)//',
+        services=["action"],
+    )
+    assert 'registry.category("actions").add' in result
+    assert "ir.actions.client" in result
+    assert 'equipment_rental.dashboard\\"; alert(1)//' in result
+    assert "Rental &lt;Dashboard&gt; &amp; Report" in result
+    print(f"✓ create_owl_client_action: Generated {len(result)} chars")
+
+    result = create_owl_field_widget(
+        widget_name="Rental Badge",
+        module_name="equipment_rental",
+        supported_types=["char", "selection"],
+    )
+    assert "standardFieldProps" in result
+    assert 'registry.category("fields").add' in result
+    print(f"✓ create_owl_field_widget: Generated {len(result)} chars")
+
+    result = create_owl_service(
+        service_name="Rental Store",
+        module_name="equipment_rental",
+        dependencies=["orm"],
+    )
+    assert 'registry.category("services").add' in result
+    assert 'dependencies: ["orm"]' in result
+    print(f"✓ create_owl_service: Generated {len(result)} chars")
+
+    result = create_owl_test(
+        component_name="Rental Dashboard",
+        module_name="equipment_rental",
+    )
+    assert "@odoo/hoot" in result
+    assert "mountWithCleanup" in result
+    assert "props:" not in result
+    assert "Test title" not in result
+    assert "Component ready" in result
+    print(f"✓ create_owl_test: Generated {len(result)} chars")
 
     result = create_base_automation(
         automation_name="Archive inactive demos",
@@ -159,6 +286,8 @@ def test_tools():
         display_name="Test Module",
         description="A test module"
     )
+    assert "wizards/" in result
+    assert "cli/" in result
     print(f"✓ create_odoo_module: Generated {len(result)} chars")
     
     from odoo_mcp.server import create_odoo_model

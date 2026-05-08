@@ -69,7 +69,10 @@ Create or edit your OpenCode configuration file:
       "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
-        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin",
+        "ODOO_SOURCE": "/path/to/odoo",
+        "ODOO_BASE_COMMAND": "/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons",
+        "ODOO_TOOL_README": "/path/to/local-development/README.md"
       }
     }
   }
@@ -79,6 +82,7 @@ Create or edit your OpenCode configuration file:
 **Important**: 
 - Replace `/absolute/path/to/odoo-dev-mcp` with your actual path
 - Replace `/home/user` in PATH with your actual home directory path
+- Replace the optional `ODOO_*` values with your local Odoo source, command template, and local tooling README paths
 - Use absolute paths (no `~` or relative paths)
 
 #### Configuration Option B: Using Python directly
@@ -92,7 +96,10 @@ Create or edit your OpenCode configuration file:
       "command": ["python3", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
-        "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp"
+        "PYTHONPATH": "/absolute/path/to/odoo-dev-mcp",
+        "ODOO_SOURCE": "/path/to/odoo",
+        "ODOO_BASE_COMMAND": "/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons",
+        "ODOO_TOOL_README": "/path/to/local-development/README.md"
       }
     }
   }
@@ -551,23 +558,33 @@ The server points to official Odoo documentation URLs and does not require local
 
 ## Features Available in OpenCode
 
-### All 14 Tools
+This MCP server works especially well alongside the companion Odoo skills repo at [mart337i/odoo-skills](https://github.com/mart337i/odoo-skills). Keep using those skills for deeper Odoo workflows; this server supplies version-aware tools and official documentation links that complement them without requiring the skills repo at runtime.
+
+### All 21 Tools
 ✅ `set_odoo_version` - Version switching
 ✅ `get_current_version` - Version check
+✅ `get_odoo_local_context` - Local Odoo source, command, and tooling README context
 ✅ `get_documentation_url` - Official Odoo documentation URL lookup
 ✅ `search_documentation` - Official reference catalog search
 ✅ `get_development_guidelines` - Get rules
 ✅ `explain_odoo_error` - Patterned Odoo traceback diagnosis
 ✅ `create_upgrade_script` - Version-aware migration script scaffolding
 ✅ `plan_odoo_feature` - Skill-informed implementation planning
+✅ `plan_owl_feature` - OWL frontend implementation planning
 ✅ `layout_module_dependencies` - Manifest dependency ordering
 ✅ `create_odoo_module` - Module generation
 ✅ `create_odoo_model` - Model creation
 ✅ `create_odoo_view` - Safer version-aware view generation
 ✅ `create_security_rules` - Security setup
 ✅ `create_base_automation` - Version-aware automated action XML
+✅ `create_owl_component` - OWL component JS/XML/SCSS scaffolding
+✅ `create_owl_client_action` - OWL client action and `ir.actions.client` scaffolding
+✅ `create_owl_field_widget` - OWL field widget scaffolding
+✅ `create_owl_service` - Odoo frontend service scaffolding
+✅ `create_owl_test` - OWL/Hoot frontend test scaffolding
 
-### All 5 Resources
+### All 6 Resources
+✅ `odoo://local/context` - Local Odoo source, command, and tooling README context
 ✅ `odoo://docs/{version}/index` - Official developer reference index
 ✅ `odoo://docs/{version}/{path}` - Official documentation URL and metadata
 ✅ `odoo://rules/clean-code` - Clean code rules

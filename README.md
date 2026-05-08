@@ -7,11 +7,16 @@ A Model Context Protocol (MCP) server for Odoo module development with AI assist
 ## Features
 
 - **📚 Official Documentation Links**: Version-aware links to Odoo's developer reference at `https://www.odoo.com/documentation/<version>/developer/reference.html`
-- **🧭 Skill-Informed Odoo Guardrails**: Built-in guidance learned from `/home/egeskov/Code/egeskov/odoo-skills` without requiring that repo at runtime
+- **🧭 Skill-Informed Odoo Guardrails**: Built-in guidance learned from [mart337i/odoo-skills](https://github.com/mart337i/odoo-skills) without requiring that repo at runtime
 - **🔧 Version-Aware Code Generation**: All generated code includes version info and relevant documentation links
+- **🦉 OWL Frontend Scaffolds**: Generate Odoo OWL components, client actions, field widgets, services, and frontend tests
 - **📋 Integrated Development Guidelines**: Built-in Odoo coding standards and best practices enforcement
 - **💡 Smart Prompts**: Guided workflows with rules-aware feature development, debugging, and upgrades
 - **🎯 Automatic Context**: Generated code includes references to official Odoo documentation and development rules
+
+## Works Great With Odoo Skills
+
+This MCP server pairs well with the companion Odoo skill set at [mart337i/odoo-skills](https://github.com/mart337i/odoo-skills). Use those skills in your agent/client for deeper Odoo workflows like addon planning, migrations, code review, testing, OWL frontend work, and debugging. The MCP server does not require that repo at runtime; it only generates tools, guardrails, and references that complement skill-driven work.
 
 ## Installation
 
@@ -70,7 +75,10 @@ Quick setup - add to `~/.opencode/config.jsonc`:
       "command": ["uv", "run", "/absolute/path/to/odoo-dev-mcp/src/odoo_mcp/server.py"],
       "enabled": true,
       "environment": {
-        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin"
+        "PATH": "/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin",
+        "ODOO_SOURCE": "/path/to/odoo",
+        "ODOO_BASE_COMMAND": "/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons",
+        "ODOO_TOOL_README": "/path/to/local-development/README.md"
       }
     }
   }
@@ -110,12 +118,25 @@ Then use in OpenCode:
 ```
 Search Odoo documentation for "fields.Command"
 Set Odoo version to 19.0
+Get Odoo local context
 Get documentation URL for reference/backend/orm
 Create model library.book with fields: name, author
 Get development guidelines
 ```
 
-**See [OPENCODE_SETUP.md](OPENCODE_SETUP.md) for complete guide with examples, troubleshooting, and workflows.**
+### Local Odoo Environment Context
+
+Configure these optional environment variables so the MCP can point agents at your local Odoo source, command template, and local development guide:
+
+```bash
+export ODOO_SOURCE=/path/to/odoo
+export ODOO_BASE_COMMAND="/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons"
+export ODOO_TOOL_README=/path/to/local-development/README.md
+```
+
+Use `get_odoo_local_context()` or `odoo://local/context` to inspect the configured values. The server treats `ODOO_BASE_COMMAND` as a command template only; agents should still ask before running commands that touch a database or local service.
+
+**See [OPENCODE_SETUP.md](guides/OPENCODE_SETUP.md) for complete guide with examples, troubleshooting, and workflows.**
 
 ## Quick Start
 
@@ -156,12 +177,14 @@ Search Odoo documentation for "computed fields"
 - `get_current_version()` - Check current version
 
 ### Documentation & Guidelines
+- `get_odoo_local_context(include_readme_excerpt)` - Show configured `ODOO_SOURCE`, `ODOO_BASE_COMMAND`, `ODOO_TOOL_README`, source hints, and command templates
 - `get_documentation_url(path, version)` - Get an official Odoo documentation URL
 - `search_documentation(query, version)` - Search the built-in official reference catalog and return Odoo documentation links
 - `get_development_guidelines(context)` - Get context-specific coding guidelines
   - Contexts: `general`, `models`, `views`, `security`, `all`
 - `explain_odoo_error(error_text, version, context)` - Diagnose patterned Odoo tracebacks with root cause, inspection steps, and docs links
 - `plan_odoo_feature(description, module_name, version)` - Create a skill-informed Odoo implementation plan with security, view, test, and docs guidance
+- `plan_owl_feature(description, module_name, integration_type, target_bundle, version)` - Plan Odoo OWL frontend work with asset, registry, service, and test guardrails
 - `layout_module_dependencies(module_name, features, models, integrate_with, explicit_dependencies)` - Infer and order manifest dependencies for an Odoo module
 
 ### Code Generation (Version-Aware)
@@ -171,6 +194,11 @@ Search Odoo documentation for "computed fields"
 - `create_security_rules(model_name, module_name, groups)` - Create security config with security documentation
 - `create_base_automation(...)` - Generate version-aware `base.automation` and linked `ir.actions.server` XML for automated actions
 - `create_upgrade_script(module_name, from_version, to_version, ...)` - Generate version-aware `pre-migration.py`, `post-migration.py`, and `end-migration.py` scaffolds with verified `odoo.upgrade.util` helper examples
+- `create_owl_component(component_name, module_name, ...)` - Generate Odoo OWL JS/XML/SCSS component scaffolds and manifest asset entries
+- `create_owl_client_action(action_name, module_name, ...)` - Generate an OWL client action, `registry.category("actions")` registration, and `ir.actions.client` XML
+- `create_owl_field_widget(widget_name, module_name, ...)` - Generate an OWL field widget using `standardFieldProps` and the fields registry
+- `create_owl_service(service_name, module_name, ...)` - Generate a frontend service using the services registry and explicit dependencies
+- `create_owl_test(component_name, module_name, ...)` - Generate an Odoo Hoot frontend test scaffold and test asset entry
 
 ### Development Prompts
 - `develop_odoo_feature(description)` - Guided feature development
@@ -186,6 +214,9 @@ Access Odoo documentation and development rules:
 - `odoo://docs/19.0/index` - Official developer reference index
 - `odoo://docs/19.0/reference/backend/orm` - ORM reference URL and metadata
 - `get_documentation_url("reference/backend/security", "19.0")` - Official Odoo security documentation URL
+
+**Local Odoo Context:**
+- `odoo://local/context` - Configured local Odoo source path, base command, and tooling README excerpt
 
 **Development Rules:**
 - `odoo://rules/all` - All development guidelines
@@ -222,6 +253,22 @@ Create a base automation for task.task that runs on create or write, watches sta
 ```
 
 The helper will include `base_automation` manifest dependency guidance and version-specific notes for time-based triggers.
+
+### OWL Frontend Examples
+
+```text
+Plan an OWL client action for an equipment rental dashboard in equipment_rental.
+```
+
+```text
+Create an OWL component called Rental Dashboard in equipment_rental with title prop, orm service, and local state.
+```
+
+```text
+Create an OWL field widget called Rental Badge in equipment_rental for char and selection fields.
+```
+
+The OWL helpers generate Odoo asset bundle entries, `@odoo/owl` imports, registry wiring, XML templates, SCSS, and frontend test guidance.
 
 ### Migration And Error Examples
 

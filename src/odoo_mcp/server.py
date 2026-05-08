@@ -1,5 +1,8 @@
 from html import escape
+import json
+import os
 from pathlib import Path
+import re
 from typing import Any
 import sys
 from mcp.server.fastmcp import FastMCP
@@ -9,6 +12,16 @@ ODOO_VERSIONS = ["17.0", "18.0", "19.0"]
 DOCS_BASE_PATH = Path(__file__).parent.parent.parent / "docs"
 RULES_BASE_PATH = Path(__file__).parent.parent.parent / "rules"
 ODOO_DOCS_BASE_URL = "https://www.odoo.com/documentation"
+SENSITIVE_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b([A-Z0-9_-]*(?:PASSWORD|PASSWD|PWD|SECRET|TOKEN|API[_-]?KEY|ACCESS[_-]?KEY)[A-Z0-9_-]*)(\s*[:=]\s*)([^\s`'\",]+)"
+)
+CLI_SECRET_VALUE_RE = re.compile(
+    r"(?i)(--(?:db[-_]?password|password|token|secret|api[-_]?key)|-w)(\s+)([^\s`]+)"
+)
+CLI_SECRET_EQUALS_RE = re.compile(
+    r"(?i)(--(?:db[-_]?password|password|token|secret|api[-_]?key)=)([^\s`]+)"
+)
+URL_CREDENTIALS_RE = re.compile(r"://([^:/\s]+):([^@\s]+)@")
 
 REFERENCE_TOPICS: list[dict[str, Any]] = [
     {
@@ -556,12 +569,173 @@ def get_skill_informed_guidance() -> str:
     return """## Odoo Operating Discipline
 
 - Detect the target Odoo version before version-sensitive work.
+- If `ODOO_SOURCE`, `ODOO_BASE_COMMAND`, or `ODOO_TOOL_README` are configured, inspect local source/tooling context before guessing commands or framework behavior.
 - Inspect existing manifests, models, views, security, controllers, assets, tests, and docs before proposing changes.
 - Treat models, views, controllers, workflows, and access behavior as security-sensitive; check ACLs, record rules, groups, `sudo()`, and multi-company boundaries together.
 - Prefer small idiomatic changes that follow existing addon structure.
 - Verify behavior at the Odoo seam: ORM, form helper, access test, controller test, report rendering, or mocked integration.
 - Ask before running commands that touch a database or local service.
 """
+
+
+def configured_env_value(name: str) -> str:
+    return os.environ.get(name, "").strip()
+
+
+def normalized_string_list(values: list[str] | None, fallback: list[str] | None = None) -> list[str]:
+    if values is None:
+        return list(fallback or [])
+    cleaned: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def js_string(value: str) -> str:
+    return json.dumps(str(value))
+
+
+def python_string(value: str) -> str:
+    return repr(str(value))
+
+
+def xml_text(value: str) -> str:
+    return escape(str(value), quote=False)
+
+
+def xml_attr(value: str) -> str:
+    return escape(str(value), quote=True)
+
+
+def redact_sensitive_text(value: str) -> str:
+    text = str(value)
+    text = URL_CREDENTIALS_RE.sub(r"://\1:***@", text)
+    text = CLI_SECRET_EQUALS_RE.sub(r"\1***", text)
+    text = CLI_SECRET_VALUE_RE.sub(r"\1\2***", text)
+    text = SENSITIVE_ASSIGNMENT_RE.sub(r"\1\2***", text)
+    return text
+
+
+def path_status(path_value: str) -> tuple[str, str]:
+    if not path_value:
+        return "not configured", ""
+    expanded = Path(path_value).expanduser()
+    if expanded.exists():
+        kind = "directory" if expanded.is_dir() else "file"
+        return f"configured ({kind} exists)", str(expanded)
+    return "configured (path does not exist)", str(expanded)
+
+
+def read_readme_excerpt(readme_path: str, max_lines: int = 40) -> str:
+    if not readme_path:
+        return "Not configured."
+    expanded = Path(readme_path).expanduser()
+    if not expanded.exists() or not expanded.is_file():
+        return "Configured, but the file does not exist."
+    try:
+        lines = expanded.read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        return f"Configured, but could not be read: {exc}"
+    excerpt = "\n".join(lines[:max_lines]).strip()
+    if len(lines) > max_lines:
+        excerpt += f"\n... ({len(lines) - max_lines} more lines)"
+    return redact_sensitive_text(excerpt) or "Configured file is empty."
+
+
+def local_odoo_roots(source: Path) -> list[Path]:
+    roots = [source]
+    try:
+        children = sorted(source.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return roots
+    for child in children:
+        if child.is_dir() and ((child / "odoo-bin").exists() or child.name.startswith("odoo")):
+            roots.append(child)
+    return roots
+
+
+def local_source_hints(source: Path | None) -> list[str]:
+    if source is None:
+        return ["- Set `ODOO_SOURCE=/path/to/odoo` to enable local source hints."]
+
+    hints: list[str] = []
+    for root in local_odoo_roots(source):
+        for relative in ["odoo-bin", "addons", "odoo/addons"]:
+            candidate = root / relative
+            hints.append(f"- `{candidate}`: {'exists' if candidate.exists() else 'not found'}")
+
+    enterprise_candidates: list[Path] = []
+    for root in local_odoo_roots(source):
+        try:
+            enterprise_candidates.extend(sorted(root.glob("enterprise*"), key=lambda path: path.name))
+        except OSError:
+            continue
+    if enterprise_candidates:
+        for candidate in enterprise_candidates:
+            kind = "directory" if candidate.is_dir() else "file"
+            hints.append(f"- `{candidate}`: enterprise candidate ({kind})")
+    else:
+        hints.append(f"- `{source / 'enterprise'}` or `{source / 'enterprise-*'}`: not found")
+
+    return hints
+
+
+def get_odoo_local_context_content(include_readme_excerpt: bool = True) -> str:
+    odoo_source = configured_env_value("ODOO_SOURCE")
+    odoo_base_command = configured_env_value("ODOO_BASE_COMMAND")
+    odoo_tool_readme = configured_env_value("ODOO_TOOL_README")
+    source_status, source_path = path_status(odoo_source)
+    readme_status, readme_path = path_status(odoo_tool_readme)
+    redacted_base_command = redact_sensitive_text(odoo_base_command)
+
+    source = Path(source_path) if source_path else None
+    source_hints = local_source_hints(source)
+
+    if odoo_base_command:
+        command_hints = f"""- Module update template: `{redacted_base_command} -d <database> -u <module> --stop-after-init`
+- Module install/test template: `{redacted_base_command} -d <database> -i <module> --test-enable --stop-after-init`
+- Shell template: `{redacted_base_command} shell -d <database>`"""
+    else:
+        command_hints = "- Set `ODOO_BASE_COMMAND=\"/path/to/odoo/odoo-bin -c /path/to/odoo.conf --addons-path=/path/to/addons\"` to enable command templates."
+
+    readme_excerpt = read_readme_excerpt(odoo_tool_readme) if include_readme_excerpt else "Readme excerpt omitted."
+
+    return f"""# Local Odoo Tool Context
+
+## Environment Variables
+
+- `ODOO_SOURCE`: {source_status}{f' -> `{source_path}`' if source_path else ''}
+- `ODOO_BASE_COMMAND`: {'configured' if odoo_base_command else 'not configured'}{f' -> `{redacted_base_command}`' if odoo_base_command else ''}
+- `ODOO_TOOL_README`: {readme_status}{f' -> `{readme_path}`' if readme_path else ''}
+
+## Source Hints
+
+{chr(10).join(source_hints)}
+
+## Command Templates
+
+{command_hints}
+
+## Local Tool README Excerpt
+
+{readme_excerpt}
+
+## Guardrails
+
+- Use `ODOO_SOURCE` to inspect framework behavior before making version-sensitive assumptions.
+- Use `ODOO_TOOL_README` to discover project-specific local commands before proposing Odoo update/test commands.
+- Treat `ODOO_BASE_COMMAND` as a starting point, not permission to run database-touching commands automatically.
+- Ask before running commands that update modules, install modules, start services, or touch a database.
+"""
+
+
+@mcp.resource("odoo://local/context")
+def get_odoo_local_context_resource() -> str:
+    return get_odoo_local_context_content(include_readme_excerpt=True)
 
 
 @mcp.resource("odoo://docs/{version}/index")
@@ -653,6 +827,12 @@ def get_current_version() -> str:
 
 
 @mcp.tool()
+def get_odoo_local_context(include_readme_excerpt: bool = True) -> str:
+    """Return local Odoo source, base command, and tooling README context from environment variables."""
+    return get_odoo_local_context_content(include_readme_excerpt=include_readme_excerpt)
+
+
+@mcp.tool()
 def get_documentation_url(path: str = "", version: str = "") -> str:
     search_version = version if version and version in ODOO_VERSIONS else current_version["value"]
     url = get_official_documentation_url(search_version, path)
@@ -710,6 +890,8 @@ def get_development_guidelines(context: str = "general") -> str:
     guidelines = f"# Development Guidelines for {context.title()} Context\n\n"
     guidelines += f"Current Odoo Version: {current_version['value']}\n\n"
     guidelines += get_skill_informed_guidance() + "\n"
+    guidelines += "## Local Odoo Context\n\n"
+    guidelines += "Use `get_odoo_local_context()` or `odoo://local/context` to inspect `ODOO_SOURCE`, `ODOO_BASE_COMMAND`, and `ODOO_TOOL_README` before proposing local Odoo commands.\n\n"
     
     rule_files = contexts[context]
     
@@ -782,7 +964,9 @@ def create_odoo_module(
 }}
 '''
     
-    init_content = '''from . import models
+    init_content = '''from . import cli
+from . import models
+from . import wizards
 '''
     
     doc_reference = get_official_documentation_url(version, "reference/backend/module")
@@ -796,6 +980,10 @@ def create_odoo_module(
 ├── __init__.py
 ├── __manifest__.py
 ├── models/
+│   └── __init__.py
+├── wizards/
+│   └── __init__.py
+├── cli/
 │   └── __init__.py
 ├── views/
 ├── security/
@@ -820,6 +1008,16 @@ def create_odoo_module(
 ### models/__init__.py
 ```python
 # Import your models here
+```
+
+### wizards/__init__.py
+```python
+# Import your transient models here
+```
+
+### cli/__init__.py
+```python
+# Import your CLI helpers here, if this module exposes any
 ```
 
 ### security/ir.model.access.csv
@@ -1397,6 +1595,599 @@ def create_base_automation(
 - Server actions: {get_official_documentation_url(automation_version, 'reference/backend/actions#server-actions-ir-actions-server')}
 - Scheduled actions: {get_official_documentation_url(automation_version, 'reference/backend/actions#module-odoo.addons.base.models.ir_cron')}
 - Security: {get_official_documentation_url(automation_version, 'reference/backend/security')}
+"""
+
+
+def identifier_words(value: str, fallback: str = "owl_component") -> list[str]:
+    words: list[str] = []
+    current = ""
+    for char in value:
+        if char.isalnum():
+            current += char.lower()
+        elif current:
+            words.append(current)
+            current = ""
+    if current:
+        words.append(current)
+    return words or [fallback]
+
+
+def snake_identifier(value: str, fallback: str = "owl_component") -> str:
+    return "_".join(identifier_words(value, fallback))
+
+
+def pascal_identifier(value: str, fallback: str = "OwlComponent") -> str:
+    words = identifier_words(value, fallback.lower())
+    return "".join(word[:1].upper() + word[1:] for word in words)
+
+
+def camel_identifier(value: str, fallback: str = "service") -> str:
+    pascal = pascal_identifier(value, fallback.title())
+    return pascal[:1].lower() + pascal[1:]
+
+
+def js_string_array(values: list[str]) -> str:
+    return "[" + ", ".join(js_string(value) for value in values) + "]"
+
+
+def owl_asset_paths(module_name: str, component_slug: str, category: str, include_scss: bool = True) -> list[str]:
+    base_path = f"{module_name}/static/src/{category}/{component_slug}/{component_slug}"
+    paths = [f"{base_path}.js", f"{base_path}.xml"]
+    if include_scss:
+        paths.append(f"{base_path}.scss")
+    return paths
+
+
+def owl_manifest_asset_snippet(bundle: str, paths: list[str]) -> str:
+    lines = ["'assets': {", f"    {python_string(bundle)}: ["]
+    lines.extend(f"        {python_string(path)}," for path in paths)
+    lines.extend(["    ],", "},"])
+    return "\n".join(lines)
+
+
+def owl_props_object(props: list[str]) -> str:
+    cleaned_props = [snake_identifier(prop, "prop") for prop in normalized_string_list(props)]
+    if not cleaned_props:
+        return "{}"
+    body = ",\n        ".join(
+        f"{prop}: {{ type: String, optional: true }}" for prop in cleaned_props
+    )
+    return "{\n        " + body + ",\n    }"
+
+
+def owl_service_setup_lines(services: list[str]) -> str:
+    cleaned_services = normalized_string_list(services)
+    if not cleaned_services:
+        return "        // Add component setup here."
+    return "\n".join(
+        f"        this.{camel_identifier(service)} = useService({js_string(service)});"
+        for service in cleaned_services
+    )
+
+
+def owl_state_line(use_state: bool) -> str:
+    return '        this.state = useState({ value: "" });' if use_state else ""
+
+
+def owl_docs(version: str) -> dict[str, str]:
+    return {
+        "owl": get_official_documentation_url(version, "reference/frontend/owl_components"),
+        "assets": get_official_documentation_url(version, "reference/frontend/assets"),
+        "registries": get_official_documentation_url(version, "reference/frontend/registries"),
+        "services": get_official_documentation_url(version, "reference/frontend/services"),
+        "hooks": get_official_documentation_url(version, "reference/frontend/hooks"),
+        "testing": get_official_documentation_url(version, "reference/frontend/unit_testing"),
+    }
+
+
+@mcp.tool()
+def plan_owl_feature(
+    feature_description: str,
+    module_name: str,
+    integration_type: str = "component",
+    target_bundle: str = "web.assets_backend",
+    version: str = "",
+) -> str:
+    """Plan Odoo OWL frontend work with asset, registry, service, and test guardrails."""
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    integration = integration_type.strip() or "component"
+    docs = owl_docs(owl_version)
+
+    registry_hint = {
+        "component": "No registry is required unless another Odoo extension point loads this component.",
+        "client_action": 'Use `registry.category("actions").add(tag, Component)` and an `ir.actions.client` record.',
+        "field_widget": 'Use `registry.category("fields").add(widgetName, fieldDefinition)` and `standardFieldProps`.',
+        "service": 'Use `registry.category("services").add(serviceName, serviceDefinition)` and declare dependencies explicitly.',
+    }.get(integration, "Choose the narrowest registry category for the Odoo extension point you are targeting.")
+
+    return f"""# OWL Feature Plan: {feature_description}
+
+Target version: Odoo {owl_version}
+Module: `{module_slug}`
+Integration type: `{integration}`
+Asset bundle: `{target_bundle}`
+
+## Implementation Path
+
+1. Confirm the Odoo version and existing frontend conventions in the target addon.
+2. Put JS/XML/SCSS under `static/src/` using the addon structure already in the repo.
+3. Register files in `__manifest__.py` under `{target_bundle}`.
+4. Keep the component small: explicit props, local `useState` only for UI state, and services through `useService`.
+5. Load templates via XML assets; use static `template = "{module_slug}.ComponentName"`.
+6. Add the right registry entry only when integrating with an Odoo extension point.
+7. Add a frontend test or tour around the user-visible behavior, not just component construction.
+
+## Registry Guidance
+
+{registry_hint}
+
+## Guardrails
+
+- Do not mutate `props`; send changes through callbacks, `record.update`, or services.
+- Treat `t-raw`/unsafe HTML as a security boundary; prefer `t-esc`/`t-out`.
+- Do not call RPC directly from random helpers when `orm`, `action`, `notification`, or `dialog` services fit.
+- Check mobile behavior and `env.isSmall` before adding dense layouts.
+- Restart/update assets and clear browser cache when testing templates or SCSS.
+
+## References
+
+- OWL components: {docs['owl']}
+- Assets: {docs['assets']}
+- Registries: {docs['registries']}
+- Services: {docs['services']}
+- Hooks: {docs['hooks']}
+- Frontend testing: {docs['testing']}
+"""
+
+
+@mcp.tool()
+def create_owl_component(
+    component_name: str,
+    module_name: str,
+    props: list[str] | None = None,
+    services: list[str] | None = None,
+    use_state: bool = False,
+    target_bundle: str = "web.assets_backend",
+    version: str = "",
+) -> str:
+    """Generate an Odoo OWL component scaffold with JS, XML, SCSS, and manifest assets."""
+    props = normalized_string_list(props)
+    services = normalized_string_list(services)
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    component_slug = snake_identifier(component_name, "component")
+    class_name = pascal_identifier(component_name, "OwlComponent")
+    template_name = f"{module_slug}.{class_name}"
+    paths = owl_asset_paths(module_slug, component_slug, "components")
+    docs = owl_docs(owl_version)
+    owl_imports = ["Component"] + (["useState"] if use_state else [])
+    hook_import = '\nimport { useService } from "@web/core/utils/hooks";' if services else ""
+    state_line = owl_state_line(use_state)
+    setup_lines = "\n".join(line for line in [owl_service_setup_lines(services), state_line] if line)
+
+    js = f'''import {{ {", ".join(owl_imports)} }} from "@odoo/owl";{hook_import}
+
+export class {class_name} extends Component {{
+    static template = "{template_name}";
+    static props = {owl_props_object(props)};
+
+    setup() {{
+{setup_lines}
+    }}
+}}
+'''
+
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="{template_name}">
+        <section class="o_{component_slug}">
+            <h3>{class_name}</h3>
+            <p t-if="props.title" t-esc="props.title"/>
+            <p t-else="">Component ready.</p>
+        </section>
+    </t>
+</templates>'''
+
+    scss = f'''.o_{component_slug} {{
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}}'''
+
+    return f"""# OWL Component Scaffold: `{class_name}` (Odoo {owl_version})
+
+## Files
+
+- `static/src/components/{component_slug}/{component_slug}.js`
+- `static/src/components/{component_slug}/{component_slug}.xml`
+- `static/src/components/{component_slug}/{component_slug}.scss`
+
+## JS
+
+```js
+{js}
+```
+
+## XML Template
+
+```xml
+{xml}
+```
+
+## SCSS
+
+```scss
+{scss}
+```
+
+## Manifest Assets
+
+```python
+{owl_manifest_asset_snippet(target_bundle, paths)}
+```
+
+## Guardrails
+
+- Template names should stay globally unique: `{template_name}`.
+- Add services only through `useService` inside `setup()`.
+- Keep data loading out of rendering getters; use lifecycle hooks/services for async work.
+
+## References
+
+- OWL components: {docs['owl']}
+- Assets: {docs['assets']}
+"""
+
+
+@mcp.tool()
+def create_owl_client_action(
+    action_name: str,
+    module_name: str,
+    action_tag: str = "",
+    services: list[str] | None = None,
+    target_bundle: str = "web.assets_backend",
+    version: str = "",
+) -> str:
+    """Generate an Odoo OWL client action scaffold and matching ir.actions.client XML."""
+    services = normalized_string_list(services)
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    action_slug = snake_identifier(action_name, "client_action")
+    class_name = pascal_identifier(action_name, "ClientAction")
+    tag = action_tag.strip() or f"{module_slug}.{action_slug}"
+    template_name = f"{module_slug}.{class_name}"
+    paths = owl_asset_paths(module_slug, action_slug, "client_actions")
+    docs = owl_docs(owl_version)
+    hook_import = '\nimport { useService } from "@web/core/utils/hooks";' if services else ""
+
+    js = f'''import {{ Component, useState }} from "@odoo/owl";
+import {{ registry }} from "@web/core/registry";{hook_import}
+
+export class {class_name} extends Component {{
+    static template = "{template_name}";
+    static props = ["*"];
+
+    setup() {{
+        this.state = useState({{ loaded: true }});
+{owl_service_setup_lines(services)}
+    }}
+}}
+
+registry.category("actions").add({js_string(tag)}, {class_name});
+'''
+
+    xml_template = f'''<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="{template_name}">
+        <div class="o_{action_slug} o_action">
+            <h2>{xml_text(action_name)}</h2>
+            <p>Client action tag: <code>{xml_text(tag)}</code></p>
+        </div>
+    </t>
+</templates>'''
+
+    action_xml = f'''<odoo>
+    <record id="action_{action_slug}" model="ir.actions.client">
+        <field name="name">{xml_text(action_name)}</field>
+        <field name="tag">{xml_text(tag)}</field>
+    </record>
+</odoo>'''
+
+    scss = f'''.o_{action_slug} {{
+    padding: 1rem;
+}}'''
+
+    return f"""# OWL Client Action Scaffold: `{class_name}` (Odoo {owl_version})
+
+## JS
+
+```js
+{js}
+```
+
+## XML Template
+
+```xml
+{xml_template}
+```
+
+## Action XML
+
+```xml
+{action_xml}
+```
+
+## SCSS
+
+```scss
+{scss}
+```
+
+## Manifest Assets
+
+```python
+{owl_manifest_asset_snippet(target_bundle, paths)}
+```
+
+## Guardrails
+
+- The `ir.actions.client` `tag` must match `registry.category("actions").add({js_string(tag)}, {class_name})`.
+- Use `props.action.params` for action parameters instead of hard-coding context.
+- Add a menu only under a real parent menu XML ID.
+
+## References
+
+- Registries: {docs['registries']}
+- Assets: {docs['assets']}
+- Frontend testing: {docs['testing']}
+"""
+
+
+@mcp.tool()
+def create_owl_field_widget(
+    widget_name: str,
+    module_name: str,
+    supported_types: list[str] | None = None,
+    target_bundle: str = "web.assets_backend",
+    version: str = "",
+) -> str:
+    """Generate an Odoo OWL field widget scaffold using standardFieldProps."""
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    widget_slug = snake_identifier(widget_name, "field_widget")
+    class_name = pascal_identifier(widget_name, "FieldWidget")
+    template_name = f"{module_slug}.{class_name}"
+    paths = owl_asset_paths(module_slug, widget_slug, "fields")
+    docs = owl_docs(owl_version)
+    types = normalized_string_list(supported_types, ["char"])
+
+    js = f'''import {{ Component }} from "@odoo/owl";
+import {{ registry }} from "@web/core/registry";
+import {{ standardFieldProps }} from "@web/views/fields/standard_field_props";
+
+export class {class_name} extends Component {{
+    static template = "{template_name}";
+    static props = {{ ...standardFieldProps }};
+
+    get value() {{
+        return this.props.record.data[this.props.name];
+    }}
+
+    async updateValue(ev) {{
+        await this.props.record.update({{ [this.props.name]: ev.target.value }});
+    }}
+}}
+
+export const {camel_identifier(widget_name)}Field = {{
+    component: {class_name},
+    displayName: "{class_name}",
+    supportedTypes: {js_string_array(types)},
+}};
+
+registry.category("fields").add({js_string(widget_slug)}, {camel_identifier(widget_name)}Field);
+'''
+
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="{template_name}">
+        <span t-if="props.readonly" t-esc="value"/>
+        <input t-else="" class="form-control" t-att-value="value || ''" t-on-change="updateValue"/>
+    </t>
+</templates>'''
+
+    scss = f'''.o_field_widget[name="{widget_slug}"] {{
+    min-width: 8rem;
+}}'''
+
+    return f"""# OWL Field Widget Scaffold: `{widget_slug}` (Odoo {owl_version})
+
+## Usage In XML Views
+
+```xml
+<field name="your_field" widget="{widget_slug}"/>
+```
+
+## JS
+
+```js
+{js}
+```
+
+## XML Template
+
+```xml
+{xml}
+```
+
+## SCSS
+
+```scss
+{scss}
+```
+
+## Manifest Assets
+
+```python
+{owl_manifest_asset_snippet(target_bundle, paths)}
+```
+
+## Guardrails
+
+- Use `standardFieldProps`; do not invent field prop contracts.
+- Read field values from `props.record.data[props.name]`.
+- Update values through `props.record.update(...)` so the form/list model stays consistent.
+- Restrict `supportedTypes` to field types you actually handle.
+
+## References
+
+- OWL components: {docs['owl']}
+- Registries: {docs['registries']}
+"""
+
+
+@mcp.tool()
+def create_owl_service(
+    service_name: str,
+    module_name: str,
+    dependencies: list[str] | None = None,
+    target_bundle: str = "web.assets_backend",
+    version: str = "",
+) -> str:
+    """Generate an Odoo frontend service scaffold for the services registry."""
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    service_slug = snake_identifier(service_name, "custom_service")
+    service_const = f"{camel_identifier(service_name)}Service"
+    service_path = f"{module_slug}/static/src/services/{service_slug}_service.js"
+    docs = owl_docs(owl_version)
+    deps = normalized_string_list(dependencies)
+    dependency_lines = "\n".join(
+        f'        const {camel_identifier(dep)} = services["{dep}"];' for dep in deps
+    ) or "        // Access declared dependencies from the `services` object."
+
+    js = f'''import {{ registry }} from "@web/core/registry";
+
+export const {service_const} = {{
+    dependencies: {js_string_array(deps)},
+
+    start(env, services) {{
+{dependency_lines}
+
+        return {{
+            async run(payload = {{}}) {{
+                // Implement service behavior here.
+                return payload;
+            }},
+        }};
+    }},
+}};
+
+registry.category("services").add({js_string(service_slug)}, {service_const});
+'''
+
+    return f"""# OWL Service Scaffold: `{service_slug}` (Odoo {owl_version})
+
+## File
+
+- `static/src/services/{service_slug}_service.js`
+
+## JS
+
+```js
+{js}
+```
+
+## Manifest Assets
+
+```python
+{owl_manifest_asset_snippet(target_bundle, [service_path])}
+```
+
+## Usage From A Component
+
+```js
+import {{ useService }} from "@web/core/utils/hooks";
+
+setup() {{
+    this.{camel_identifier(service_name)} = useService({js_string(service_slug)});
+}}
+```
+
+## Guardrails
+
+- Declare every service dependency in `dependencies`; do not read undeclared services from `env`.
+- Keep services stateful only when the state is genuinely shared across components.
+- Return a narrow public API from `start(...)`.
+
+## References
+
+- Services: {docs['services']}
+- Registries: {docs['registries']}
+- Assets: {docs['assets']}
+"""
+
+
+@mcp.tool()
+def create_owl_test(
+    component_name: str,
+    module_name: str,
+    test_type: str = "component",
+    target_bundle: str = "web.assets_unit_tests",
+    version: str = "",
+) -> str:
+    """Generate an Odoo frontend test scaffold for an OWL component or client action."""
+    owl_version = version if version in ODOO_VERSIONS else current_version["value"]
+    module_slug = snake_identifier(module_name, "custom_module")
+    component_slug = snake_identifier(component_name, "component")
+    class_name = pascal_identifier(component_name, "OwlComponent")
+    test_slug = snake_identifier(test_type, "component")
+    test_path = f"{module_slug}/static/tests/{test_slug}/{component_slug}.test.js"
+    docs = owl_docs(owl_version)
+
+    js = f'''import {{ expect, test }} from "@odoo/hoot";
+import {{ mountWithCleanup }} from "@web/../tests/web_test_helpers";
+
+import {{ {class_name} }} from "../../src/components/{component_slug}/{component_slug}";
+
+test("{class_name} renders", async () => {{
+    const component = await mountWithCleanup({class_name});
+
+    expect(component.el).toHaveText(/Component ready/);
+}});
+'''
+
+    return f"""# OWL Test Scaffold: `{class_name}` (Odoo {owl_version})
+
+## File
+
+- `static/tests/{test_slug}/{component_slug}.test.js`
+
+## JS Test
+
+```js
+{js}
+```
+
+## Manifest Test Assets
+
+```python
+{owl_manifest_asset_snippet(target_bundle, [test_path])}
+```
+
+## Test Checklist
+
+- Assert visible behavior after rendering.
+- Add `props` to `mountWithCleanup` only when the component explicitly declares them.
+- Mock services/RPCs instead of calling a real server from unit tests.
+- Add a WebClient/client-action test when routing, breadcrumbs, or action params matter.
+- Add a tour only when browser-level integration is the real risk.
+
+## References
+
+- Frontend testing: {docs['testing']}
+- OWL components: {docs['owl']}
+- Assets: {docs['assets']}
 """
 
 
