@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-08
+
 ### Changed
 
 - Documentation tools now prefer official Odoo developer reference URLs using `https://www.odoo.com/documentation/<version>/developer/reference.html`.
