@@ -175,9 +175,11 @@ Search Odoo documentation for "computed fields"
 ### Version Management
 - `set_odoo_version(version)` - Switch between 17.0, 18.0, 19.0
 - `get_current_version()` - Check current version
+- `detect_odoo_version(path, ...)` - Detect a likely local Odoo version from env vars, `release.py`, addon manifests, and branch names without changing the active version
 
 ### Documentation & Guidelines
 - `get_odoo_local_context(include_readme_excerpt)` - Show configured `ODOO_SOURCE`, `ODOO_BASE_COMMAND`, `ODOO_TOOL_README`, source hints, and command templates
+- `inspect_odoo_source(path, query, scope, max_files)` - Use AST to compactly inspect Odoo core/addon manifests, models, controllers, routes, imports, and version signals without executing source
 - `get_documentation_url(path, version)` - Get an official Odoo documentation URL
 - `search_documentation(query, version)` - Search the built-in official reference catalog and return Odoo documentation links
 - `get_development_guidelines(context)` - Get context-specific coding guidelines
@@ -424,7 +426,7 @@ Use `get_documentation_url()` or `odoo://docs/<version>/index`. The server retur
 
 ## Tips
 
-1. **Always set the Odoo version first** - All code generation adapts to the selected version
+1. **Detect, then set the Odoo version** - Use `detect_odoo_version()` to inspect local evidence, then `set_odoo_version()` if the active version should change
 2. **Review development guidelines** - Use `get_development_guidelines()` for context-specific rules
 3. **Follow naming conventions** - Generated code includes rules warnings for common mistakes
 4. **Use descriptive model names** - e.g., `library.book` (with dots), not `lib_b` (with underscores)

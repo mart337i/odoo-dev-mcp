@@ -60,6 +60,8 @@ def test_tools():
     tools = [
         "set_odoo_version",
         "get_current_version",
+        "detect_odoo_version",
+        "inspect_odoo_source",
         "get_odoo_local_context",
         "get_documentation_url",
         "search_documentation",
@@ -117,7 +119,7 @@ def test_tools():
 
     previous_env = {
         name: os.environ.get(name)
-        for name in ["ODOO_SOURCE", "ODOO_BASE_COMMAND", "ODOO_TOOL_README"]
+        for name in ["ODOO_SOURCE", "ODOO_BASE_COMMAND", "ODOO_TOOL_README", "ODOO_VERSION", "DEFAULT_ODOO_VERSION"]
     }
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -126,8 +128,52 @@ def test_tools():
             (nested_odoo / "addons").mkdir(parents=True)
             (nested_odoo / "odoo").mkdir()
             (nested_odoo / "odoo" / "addons").mkdir()
+            (nested_odoo / "odoo" / "release.py").write_text(
+                "version_info = (19, 0, 0, 'final', 0, '')\n",
+                encoding="utf-8",
+            )
             (nested_odoo / "odoo-bin").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
             (source_root / "enterprise-19.0").mkdir()
+            addon_path = source_root / "custom_addons" / "demo_module"
+            addon_path.mkdir(parents=True)
+            (addon_path / "__manifest__.py").write_text(
+                "{'name': 'Demo', 'version': '18.0.1.0.0', 'depends': ['base']}\n",
+                encoding="utf-8",
+            )
+            (addon_path / "models").mkdir()
+            (addon_path / "models" / "demo.py").write_text(
+                """from odoo import api, fields, models
+
+
+class DemoModel(models.Model):
+    _name = "demo.model"
+    _inherit = ["mail.thread"]
+    _description = "Demo Model"
+
+    amount = fields.Float(string="Amount")
+    total = fields.Float(compute="_compute_total")
+
+    @api.depends("amount")
+    def _compute_total(self):
+        pass
+""",
+                encoding="utf-8",
+            )
+            (addon_path / "controllers").mkdir()
+            (addon_path / "controllers" / "main.py").write_text(
+                """from odoo import http
+
+
+class DemoController(http.Controller):
+    @http.route("/demo", auth="user", type="json", methods=["POST"])
+    def demo(self):
+        pass
+""",
+                encoding="utf-8",
+            )
+            (addon_path / "models" / "bad.py").write_text("def broken(:\n", encoding="utf-8")
+            (source_root / ".git").mkdir()
+            (source_root / ".git" / "HEAD").write_text("ref: refs/heads/19.0-feature\n", encoding="utf-8")
             local_readme = source_root / "local-tools.md"
             local_readme.write_text(
                 "Run with db_password = local-secret\nAPI_KEY: local-api-key\n",
@@ -135,9 +181,23 @@ def test_tools():
             )
 
             os.environ["ODOO_SOURCE"] = str(source_root)
+            os.environ["ODOO_VERSION"] = "17.0"
+            os.environ["DEFAULT_ODOO_VERSION"] = "17.0"
             os.environ["ODOO_BASE_COMMAND"] = f"{nested_odoo}/odoo-bin -c /tmp/odoo.conf --db-password hunter2 --addons-path=/tmp/addons"
             os.environ["ODOO_TOOL_README"] = str(local_readme)
             result = get_odoo_local_context(include_readme_excerpt=True)
+            from odoo_mcp.server import detect_odoo_version
+            from odoo_mcp.server import inspect_odoo_source
+            source_result = detect_odoo_version(
+                path=str(source_root),
+                include_env=False,
+                include_manifests=False,
+                include_branch=False,
+            )
+            conflict_result = detect_odoo_version(path=str(source_root))
+            source_inspection = inspect_odoo_source(path=str(source_root), scope="both", max_files=50)
+            query_inspection = inspect_odoo_source(path=str(source_root), query="demo.model", scope="addons", max_files=50)
+            limited_inspection = inspect_odoo_source(path=str(source_root), scope="addons", max_files=1)
         assert "ODOO_SOURCE" in result
         assert "ODOO_BASE_COMMAND" in result
         assert "ODOO_TOOL_README" in result
@@ -148,6 +208,29 @@ def test_tools():
         assert "local-secret" not in result
         assert "local-api-key" not in result
         assert "***" in result
+        assert "Suggested current version: `19.0`" in source_result
+        assert "source release.py" in source_result
+        assert "Result: conflict detected." in conflict_result
+        assert "`17.0`" in conflict_result
+        assert "`18.0`" in conflict_result
+        assert "`19.0`" in conflict_result
+        assert "environment" in conflict_result
+        assert "manifest" in conflict_result
+        assert "branch" in conflict_result
+        assert get_current_version() == "Current Odoo development version: 18.0"
+        assert "# Odoo Source Inspection" in source_inspection
+        assert "`19.0`" in source_inspection
+        assert "`demo_module`" in source_inspection
+        assert "DemoModel" in source_inspection
+        assert "_name=`demo.model`" in source_inspection
+        assert "amount" in source_inspection
+        assert "_compute_total" in source_inspection
+        assert "DemoController.demo" in source_inspection
+        assert "/demo" in source_inspection
+        assert "bad.py" in source_inspection
+        assert "DemoModel" in query_inspection
+        assert "DemoController" not in query_inspection
+        assert "Files skipped by limit" in limited_inspection
     finally:
         for name, value in previous_env.items():
             if value is None:
@@ -289,6 +372,17 @@ def test_tools():
     assert "wizards/" in result
     assert "cli/" in result
     print(f"✓ create_odoo_module: Generated {len(result)} chars")
+
+    result = create_odoo_module(
+        module_name="escaped_module",
+        display_name="Test ' Module",
+        description="A test\nmodule",
+        author="O'Hara",
+    )
+    assert "'name': \"Test ' Module\"" in result
+    assert "'description': 'A test\\nmodule'" in result
+    assert "'author': \"O'Hara\"" in result
+    print(f"✓ create_odoo_module escaping: Generated {len(result)} chars")
     
     from odoo_mcp.server import create_odoo_model
     result = create_odoo_model(
@@ -299,6 +393,17 @@ def test_tools():
         ]
     )
     print(f"✓ create_odoo_model: Generated {len(result)} chars")
+
+    result = create_odoo_model(
+        model_name="test.model",
+        model_description="Test ' Model",
+        fields=[
+            {"name": "partner_id", "type": "Many2one", "comodel_name": "res.partner", "string": "Partner's Ref"}
+        ]
+    )
+    assert '_description = "Test \' Model"' in result
+    assert 'string="Partner\'s Ref"' in result
+    print(f"✓ create_odoo_model escaping: Generated {len(result)} chars")
     
     from odoo_mcp.server import create_odoo_view
     result = create_odoo_view(
@@ -308,6 +413,18 @@ def test_tools():
     )
     assert "<list>" in result
     print(f"✓ create_odoo_view: Generated {len(result)} chars")
+
+    result = create_odoo_view(
+        model_name="test.model",
+        view_type="form",
+        fields_to_display=['name"><x'],
+        view_name='view"><x',
+        parent_menu='base.menu"><x',
+    )
+    assert 'id="view&quot;&gt;&lt;x"' in result
+    assert 'name="name&quot;&gt;&lt;x"' in result
+    assert 'parent="base.menu&quot;&gt;&lt;x"' in result
+    print(f"✓ create_odoo_view escaping: Generated {len(result)} chars")
     
     from odoo_mcp.server import create_security_rules
     result = create_security_rules(
@@ -315,6 +432,19 @@ def test_tools():
         module_name="test_module"
     )
     print(f"✓ create_security_rules: Generated {len(result)} chars")
+
+    result = create_security_rules(
+        model_name="test.model",
+        module_name="bad,module"
+    )
+    assert result == "Error: module_name must not contain commas or newlines"
+    result = create_security_rules(
+        model_name="test.model",
+        module_name="test_module",
+        groups=["bad\ngroup"],
+    )
+    assert result == "Error: group must not contain commas or newlines"
+    print("✓ create_security_rules CSV validation")
 
 
 def test_prompts():

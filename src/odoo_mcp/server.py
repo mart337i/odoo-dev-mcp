@@ -1,4 +1,5 @@
 from html import escape
+import ast
 import json
 import os
 from pathlib import Path
@@ -6,6 +7,11 @@ import re
 from typing import Any
 import sys
 from mcp.server.fastmcp import FastMCP
+
+try:
+    from .source_ast import inspect_odoo_source_content
+except ImportError:  # pragma: no cover - supports direct script execution during local setup.
+    from source_ast import inspect_odoo_source_content
 
 ODOO_VERSIONS = ["17.0", "18.0", "19.0"]
 # Legacy local docs path. Official docs links are the primary source now.
@@ -578,6 +584,233 @@ def get_skill_informed_guidance() -> str:
 """
 
 
+VERSION_PATTERN = re.compile(r"(?<!\d)(\d{2}\.0)(?!\d)")
+
+
+def normalize_odoo_version(value: Any) -> str:
+    text = str(value).strip()
+    if not text:
+        return ""
+    match = VERSION_PATTERN.search(text)
+    if match:
+        return match.group(1)
+    if text.isdigit() and len(text) == 2:
+        return f"{text}.0"
+    return ""
+
+
+def version_evidence(source: str, value: Any, detail: str, weight: int = 1) -> dict[str, Any] | None:
+    version = normalize_odoo_version(value)
+    if not version:
+        return None
+    return {
+        "version": version,
+        "source": source,
+        "value": str(value),
+        "detail": detail,
+        "weight": weight,
+        "supported": version in ODOO_VERSIONS,
+    }
+
+
+def detect_version_from_env() -> list[dict[str, Any]]:
+    evidence = []
+    for name in ["ODOO_VERSION", "DEFAULT_ODOO_VERSION"]:
+        value = configured_env_value(name)
+        item = version_evidence("environment", value, f"{name}={value}", weight=3)
+        if item:
+            evidence.append(item)
+    return evidence
+
+
+def candidate_roots(path: str = "") -> list[Path]:
+    roots = []
+    if path.strip():
+        roots.append(Path(path).expanduser())
+    source_path = configured_env_value("ODOO_SOURCE")
+    if source_path:
+        roots.append(Path(source_path).expanduser())
+
+    unique = []
+    seen = set()
+    for root in roots:
+        try:
+            key = str(root.resolve())
+        except OSError:
+            key = str(root)
+        if key not in seen:
+            seen.add(key)
+            unique.append(root)
+    return unique
+
+
+def source_roots(path: str = "") -> list[Path]:
+    roots = []
+    for root in candidate_roots(path):
+        roots.extend(local_odoo_roots(root) if root.exists() else [root])
+    unique = []
+    seen = set()
+    for root in roots:
+        try:
+            key = str(root.resolve())
+        except OSError:
+            key = str(root)
+        if key not in seen:
+            seen.add(key)
+            unique.append(root)
+    return unique
+
+
+def literal_assignment(source: str, names: set[str]) -> dict[str, Any]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    values = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in names:
+                try:
+                    values[target.id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    continue
+    return values
+
+
+def release_file_version(release_file: Path) -> str:
+    try:
+        values = literal_assignment(release_file.read_text(encoding="utf-8"), {"version", "server_version", "version_info"})
+    except OSError:
+        return ""
+    for name in ["version", "server_version"]:
+        version = normalize_odoo_version(values.get(name, ""))
+        if version:
+            return version
+    version_info = values.get("version_info")
+    if isinstance(version_info, (list, tuple)) and len(version_info) >= 2:
+        major, minor = version_info[0], version_info[1]
+        if isinstance(major, int) and isinstance(minor, int):
+            return normalize_odoo_version(f"{major}.{minor}")
+    return ""
+
+
+def detect_version_from_source(path: str = "") -> list[dict[str, Any]]:
+    evidence = []
+    for root in source_roots(path):
+        for release_file in [root / "odoo" / "release.py", root / "release.py"]:
+            if not release_file.exists():
+                continue
+            version = release_file_version(release_file)
+            item = version_evidence("source release.py", version, str(release_file), weight=4)
+            if item:
+                evidence.append(item)
+    return evidence
+
+
+def manifest_version(manifest_file: Path) -> str:
+    try:
+        values = ast.literal_eval(manifest_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError, TypeError):
+        return ""
+    if not isinstance(values, dict):
+        return ""
+    return normalize_odoo_version(values.get("version", ""))
+
+
+def detect_version_from_manifests(path: str = "", limit: int = 500) -> list[dict[str, Any]]:
+    evidence = []
+    for root in candidate_roots(path):
+        if not root.is_dir():
+            continue
+        scanned = 0
+        for manifest_file in root.rglob("__manifest__.py"):
+            scanned += 1
+            if scanned > limit:
+                evidence.append({
+                    "version": "",
+                    "source": "manifest",
+                    "value": "scan limit reached",
+                    "detail": f"Stopped after {limit} manifests under {root}",
+                    "weight": 0,
+                    "supported": False,
+                })
+                break
+            version = manifest_version(manifest_file)
+            item = version_evidence("manifest", version, str(manifest_file), weight=1)
+            if item:
+                evidence.append(item)
+    return evidence
+
+
+def find_git_dir(root: Path) -> Path | None:
+    current = root if root.is_dir() else root.parent
+    for candidate in [current, *current.parents]:
+        git_path = candidate / ".git"
+        if git_path.is_dir():
+            return git_path
+    return None
+
+
+def detect_version_from_branch(path: str = "") -> list[dict[str, Any]]:
+    evidence = []
+    for root in candidate_roots(path):
+        git_dir = find_git_dir(root)
+        if git_dir is None:
+            continue
+        head = git_dir / "HEAD"
+        try:
+            head_text = head.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        branch = head_text.removeprefix("ref: refs/heads/")
+        item = version_evidence("branch", branch, f"{head}: {branch}", weight=2)
+        if item:
+            evidence.append(item)
+    return evidence
+
+
+def summarize_version_evidence(evidence: list[dict[str, Any]]) -> tuple[str, str, list[str]]:
+    scores: dict[str, int] = {}
+    counts: dict[str, int] = {}
+    for item in evidence:
+        version = item.get("version", "")
+        if not version:
+            continue
+        scores[version] = scores.get(version, 0) + int(item.get("weight", 1))
+        counts[version] = counts.get(version, 0) + 1
+
+    versions = sorted(scores, key=lambda version: (-scores[version], version))
+    if not versions:
+        return "unknown", "none", []
+    if len(versions) > 1:
+        return versions[0], "conflict", versions
+
+    version = versions[0]
+    if scores[version] >= 4:
+        confidence = "high"
+    elif counts[version] >= 2 or scores[version] >= 2:
+        confidence = "medium"
+    else:
+        confidence = "low"
+    return version, confidence, versions
+
+
+def format_version_evidence(evidence: list[dict[str, Any]]) -> str:
+    lines = []
+    for item in evidence:
+        version = item.get("version", "")
+        source = item.get("source", "unknown")
+        detail = item.get("detail", "")
+        if version:
+            supported = "supported" if item.get("supported") else "unsupported by this MCP"
+            lines.append(f"- `{version}` from {source}: {detail} ({supported})")
+        else:
+            lines.append(f"- {source}: {detail}")
+    return "\n".join(lines) or "- No version evidence found."
+
+
 def configured_env_value(name: str) -> str:
     return os.environ.get(name, "").strip()
 
@@ -827,6 +1060,96 @@ def get_current_version() -> str:
 
 
 @mcp.tool()
+def detect_odoo_version(
+    path: str = "",
+    include_env: bool = True,
+    include_source: bool = True,
+    include_manifests: bool = True,
+    include_branch: bool = True,
+) -> str:
+    """Detect the likely Odoo version from local evidence without changing current_version."""
+    evidence = []
+    if include_env:
+        evidence.extend(detect_version_from_env())
+    if include_source:
+        evidence.extend(detect_version_from_source(path))
+    if include_manifests:
+        evidence.extend(detect_version_from_manifests(path))
+    if include_branch:
+        evidence.extend(detect_version_from_branch(path))
+
+    detected, confidence, versions = summarize_version_evidence(evidence)
+    target = Path(path).expanduser() if path.strip() else None
+    inspected = str(target) if target else configured_env_value("ODOO_SOURCE") or "environment only / no path configured"
+
+    output = [
+        "# Odoo Version Detection",
+        "",
+        f"Active MCP version: `{current_version['value']}`",
+        f"Inspected: `{inspected}`",
+        "",
+    ]
+
+    if confidence == "none":
+        output.extend([
+            "Result: no version detected.",
+            "",
+            "## Evidence",
+            format_version_evidence(evidence),
+            "",
+            "## Next Step",
+            "Set `ODOO_SOURCE`, pass an explicit `path`, or configure `ODOO_VERSION` / `DEFAULT_ODOO_VERSION`.",
+        ])
+        return "\n".join(output)
+
+    if confidence == "conflict":
+        output.extend([
+            "Result: conflict detected.",
+            f"Top candidate by evidence weight: `{detected}`",
+            f"Detected candidates: {', '.join(f'`{version}`' for version in versions)}",
+            "",
+            "## Evidence",
+            format_version_evidence(evidence),
+            "",
+            "## Next Step",
+            "Resolve the conflicting sources, then run `set_odoo_version(...)` manually if the active MCP version should change.",
+        ])
+        return "\n".join(output)
+
+    supported = detected in ODOO_VERSIONS
+    output.extend([
+        f"Result: `{detected}` detected with {confidence} confidence.",
+        "",
+        "## Evidence",
+        format_version_evidence(evidence),
+        "",
+        "## Next Step",
+    ])
+    if supported:
+        output.append(f"Suggested current version: `{detected}`. Run `set_odoo_version(\"{detected}\")` to apply it.")
+    else:
+        output.append(f"Detected `{detected}`, but this MCP currently supports docs/code generation for: {', '.join(ODOO_VERSIONS)}.")
+    return "\n".join(output)
+
+
+@mcp.tool()
+def inspect_odoo_source(
+    path: str = "",
+    query: str = "",
+    scope: str = "both",
+    max_files: int = 200,
+) -> str:
+    """Inspect Odoo core/addon source with AST and return a compact source map."""
+    return inspect_odoo_source_content(
+        path=path,
+        query=query,
+        scope=scope,
+        max_files=max_files,
+        env_source=configured_env_value("ODOO_SOURCE"),
+    )
+
+
+@mcp.tool()
 def get_odoo_local_context(include_readme_excerpt: bool = True) -> str:
     """Return local Odoo source, base command, and tooling README context from environment variables."""
     return get_odoo_local_context_content(include_readme_excerpt=include_readme_excerpt)
@@ -936,24 +1259,23 @@ def create_odoo_module(
     description: str,
     author: str = "Your Company",
     category: str = "Uncategorized",
-    depends: list[str] = []
+    depends: list[str] | None = None,
 ) -> str:
     version = current_version["value"]
+    depends = normalized_string_list(depends, ["base"])
     if not depends:
         depends = ["base"]
     
     manifest_content = f'''{{
-    'name': '{display_name}',
+    'name': {python_string(display_name)},
     'version': '{version}.1.0.0',
-    'category': '{category}',
-    'summary': '{description}',
-    'description': """
-        {description}
-    """,
-    'author': '{author}',
+    'category': {python_string(category)},
+    'summary': {python_string(description)},
+    'description': {python_string(description)},
+    'author': {python_string(author)},
     'website': 'https://www.yourcompany.com',
     'license': 'LGPL-3',
-    'depends': {depends},
+    'depends': {depends!r},
     'data': [
         'security/ir.model.access.csv',
     ],
@@ -1066,19 +1388,19 @@ def create_odoo_model(
         
         if field_type == "Many2one":
             comodel = field.get("comodel_name", "res.partner")
-            field_def = f'    {field_name} = fields.Many2one(\'{comodel}\', string=\'{field_string}\', required={required})'
+            field_def = f'    {field_name} = fields.Many2one({python_string(comodel)}, string={python_string(field_string)}, required={required})'
         elif field_type == "One2many":
             comodel = field.get("comodel_name")
             inverse = field.get("inverse_name")
-            field_def = f'    {field_name} = fields.One2many(\'{comodel}\', \'{inverse}\', string=\'{field_string}\')'
+            field_def = f'    {field_name} = fields.One2many({python_string(comodel)}, {python_string(inverse)}, string={python_string(field_string)})'
         elif field_type == "Many2many":
             comodel = field.get("comodel_name")
-            field_def = f'    {field_name} = fields.Many2many(\'{comodel}\', string=\'{field_string}\')'
+            field_def = f'    {field_name} = fields.Many2many({python_string(comodel)}, string={python_string(field_string)})'
         elif field_type == "Selection":
             selection = field.get("selection", "[('draft', 'Draft'), ('done', 'Done')]")
-            field_def = f'    {field_name} = fields.Selection({selection}, string=\'{field_string}\', required={required})'
+            field_def = f'    {field_name} = fields.Selection({selection}, string={python_string(field_string)}, required={required})'
         else:
-            field_def = f'    {field_name} = fields.{field_type}(string=\'{field_string}\', required={required})'
+            field_def = f'    {field_name} = fields.{field_type}(string={python_string(field_string)}, required={required})'
         
         field_definitions.append(field_def)
     
@@ -1090,7 +1412,7 @@ def create_odoo_model(
 
 
 class {class_name}(models.Model):
-    _inherit = '{inherit}'
+    _inherit = {python_string(inherit)}
 
 {fields_code}
 '''
@@ -1099,8 +1421,8 @@ class {class_name}(models.Model):
 
 
 class {class_name}(models.Model):
-    _name = '{model_name}'
-    _description = '{model_description}'
+    _name = {python_string(model_name)}
+    _description = {python_string(model_description)}
 
     name = fields.Char(string='Name', required=True)
 {fields_code}
@@ -1160,14 +1482,19 @@ def create_odoo_view(
 
     model_underscore = model_name.replace(".", "_")
     display_name = model_name.split(".")[-1].replace("_", " ").title()
+    model_name_xml = xml_text(model_name)
+    view_name_attr = xml_attr(view_name)
+    model_underscore_attr = xml_attr(model_underscore)
+    display_name_xml = xml_text(display_name)
+    display_name_attr = xml_attr(display_name)
 
     if normalized_view_type in {"tree", "list"}:
-        fields_xml = "\n            ".join([f'<field name="{field}"/>' for field in fields_to_display])
+        fields_xml = "\n            ".join([f'<field name="{xml_attr(field)}"/>' for field in fields_to_display])
         view_xml = f'''<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="{view_name}" model="ir.ui.view">
-        <field name="name">{model_name}.{normalized_view_type}</field>
-        <field name="model">{model_name}</field>
+    <record id="{view_name_attr}" model="ir.ui.view">
+        <field name="name">{model_name_xml}.{normalized_view_type}</field>
+        <field name="model">{model_name_xml}</field>
         <field name="arch" type="xml">
             <{normalized_view_type}>
                 {fields_xml}
@@ -1177,12 +1504,12 @@ def create_odoo_view(
 </odoo>'''
 
     elif normalized_view_type == "form":
-        fields_xml = "\n                    ".join([f'<field name="{field}"/>' for field in fields_to_display])
+        fields_xml = "\n                    ".join([f'<field name="{xml_attr(field)}"/>' for field in fields_to_display])
         view_xml = f'''<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="{view_name}" model="ir.ui.view">
-        <field name="name">{model_name}.form</field>
-        <field name="model">{model_name}</field>
+    <record id="{view_name_attr}" model="ir.ui.view">
+        <field name="name">{model_name_xml}.form</field>
+        <field name="model">{model_name_xml}</field>
         <field name="arch" type="xml">
             <form>
                 <sheet>
@@ -1196,12 +1523,12 @@ def create_odoo_view(
 </odoo>'''
 
     elif normalized_view_type == "search":
-        fields_xml = "\n                ".join([f'<field name="{field}"/>' for field in fields_to_display])
+        fields_xml = "\n                ".join([f'<field name="{xml_attr(field)}"/>' for field in fields_to_display])
         view_xml = f'''<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="{view_name}" model="ir.ui.view">
-        <field name="name">{model_name}.search</field>
-        <field name="model">{model_name}</field>
+    <record id="{view_name_attr}" model="ir.ui.view">
+        <field name="name">{model_name_xml}.search</field>
+        <field name="model">{model_name_xml}</field>
         <field name="arch" type="xml">
             <search>
                 {fields_xml}
@@ -1212,13 +1539,13 @@ def create_odoo_view(
 
     else:
         kanban_fields = fields_to_display or ["name"]
-        field_declarations = "\n                ".join([f'<field name="{field}"/>' for field in kanban_fields])
-        card_lines = "\n                                    ".join([f'<div><field name="{field}"/></div>' for field in kanban_fields[:4]])
+        field_declarations = "\n                ".join([f'<field name="{xml_attr(field)}"/>' for field in kanban_fields])
+        card_lines = "\n                                    ".join([f'<div><field name="{xml_attr(field)}"/></div>' for field in kanban_fields[:4]])
         view_xml = f'''<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="{view_name}" model="ir.ui.view">
-        <field name="name">{model_name}.kanban</field>
-        <field name="model">{model_name}</field>
+    <record id="{view_name_attr}" model="ir.ui.view">
+        <field name="name">{model_name_xml}.kanban</field>
+        <field name="model">{model_name_xml}</field>
         <field name="arch" type="xml">
             <kanban>
                 {field_declarations}
@@ -1237,21 +1564,21 @@ def create_odoo_view(
 </odoo>'''
 
     if parent_menu:
-        menu_xml = f'''    <menuitem id="menu_{model_underscore}"
-              name="{display_name}"
-              action="action_{model_underscore}"
-              parent="{parent_menu}"/>'''
+        menu_xml = f'''    <menuitem id="menu_{model_underscore_attr}"
+              name="{display_name_attr}"
+              action="action_{model_underscore_attr}"
+              parent="{xml_attr(parent_menu)}"/>'''
     else:
         menu_xml = f'''    <!-- Add a menu only after choosing a real parent menu:
-    <menuitem id="menu_{model_underscore}"
-              name="{display_name}"
-              action="action_{model_underscore}"
+    <menuitem id="menu_{model_underscore_attr}"
+              name="{display_name_attr}"
+              action="action_{model_underscore_attr}"
               parent="your_module.menu_parent"/>
     -->'''
 
-    action_xml = f'''    <record id="action_{model_underscore}" model="ir.actions.act_window">
-        <field name="name">{display_name}</field>
-        <field name="res_model">{model_name}</field>
+    action_xml = f'''    <record id="action_{model_underscore_attr}" model="ir.actions.act_window">
+        <field name="name">{display_name_xml}</field>
+        <field name="res_model">{model_name_xml}</field>
         <field name="view_mode">{collection_view_type},form</field>
     </record>
 
@@ -1318,10 +1645,14 @@ Add to __manifest__.py 'data' section after security files:
 def create_security_rules(
     model_name: str,
     module_name: str,
-    groups: list[str] = []
+    groups: list[str] | None = None,
 ) -> str:
+    groups = normalized_string_list(groups, ["user", "manager"])
     if not groups:
         groups = ["user", "manager"]
+    for csv_value, csv_label in [(model_name, "model_name"), (module_name, "module_name"), *[(group, "group") for group in groups]]:
+        if "," in csv_value or "\n" in csv_value or "\r" in csv_value:
+            return f"Error: {csv_label} must not contain commas or newlines"
     
     model_underscore = model_name.replace(".", "_")
     
@@ -1360,9 +1691,9 @@ def create_security_rules(
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="{model_underscore}_rule_own" model="ir.rule">
-        <field name="name">{model_name}: See own records</field>
-        <field name="model_id" ref="model_{model_underscore}"/>
+    <record id="{xml_attr(model_underscore)}_rule_own" model="ir.rule">
+        <field name="name">{xml_text(model_name)}: See own records</field>
+        <field name="model_id" ref="model_{xml_attr(model_underscore)}"/>
         <field name="domain_force">[('create_uid', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -1426,7 +1757,7 @@ def create_base_automation(
     code: str = "",
     module_name: str = "",
     model_xml_id: str = "",
-    trigger_fields: list[str] = [],
+    trigger_fields: list[str] | None = None,
     filter_domain: str = "",
     filter_pre_domain: str = "",
     update_path: str = "",
@@ -1438,12 +1769,14 @@ def create_base_automation(
     delay_unit: str = "hour",
     delay_mode: str = "after",
     webhook_url: str = "",
-    webhook_fields: list[str] = [],
+    webhook_fields: list[str] | None = None,
     xml_id: str = "",
     noupdate: bool = True,
     version: str = "",
 ) -> str:
     automation_version = version if version in ODOO_VERSIONS else current_version["value"]
+    trigger_fields = normalized_string_list(trigger_fields)
+    webhook_fields = normalized_string_list(webhook_fields)
     trigger = trigger.strip() or "on_create_or_write"
     action_type = action_type.strip() or "code"
     module_name = module_name.strip()
@@ -2251,14 +2584,18 @@ def collect_module_dependencies(module: str, seen: set[str], ordered: list[str])
 @mcp.tool()
 def layout_module_dependencies(
     module_name: str,
-    features: list[str] = [],
-    models: list[str] = [],
-    integrate_with: list[str] = [],
-    explicit_dependencies: list[str] = [],
+    features: list[str] | None = None,
+    models: list[str] | None = None,
+    integrate_with: list[str] | None = None,
+    explicit_dependencies: list[str] | None = None,
     include_transitive: bool = False,
     version: str = "",
 ) -> str:
     dependency_version = version if version in ODOO_VERSIONS else current_version["value"]
+    features = normalized_string_list(features)
+    models = normalized_string_list(models)
+    integrate_with = normalized_string_list(integrate_with)
+    explicit_dependencies = normalized_string_list(explicit_dependencies)
     requested_modules = {dep.strip() for dep in explicit_dependencies if dep.strip()}
     requested_modules.add("base")
 
@@ -2362,12 +2699,16 @@ def create_upgrade_script(
     from_version: str,
     to_version: str,
     migration_version: str = "",
-    rename_models: list[dict[str, str]] = [],
-    rename_fields: list[dict[str, str]] = [],
-    rename_xmlids: list[dict[str, str]] = [],
-    data_migrations: list[str] = [],
+    rename_models: list[dict[str, str]] | None = None,
+    rename_fields: list[dict[str, str]] | None = None,
+    rename_xmlids: list[dict[str, str]] | None = None,
+    data_migrations: list[str] | None = None,
     oca_style: bool = True,
 ) -> str:
+    rename_models = rename_models or []
+    rename_fields = rename_fields or []
+    rename_xmlids = rename_xmlids or []
+    data_migrations = normalized_string_list(data_migrations)
     target_version = migration_version or to_version or current_version["value"]
     migration_dir = f"migrations/{target_version}"
     intermediate_versions = migration_versions_between(from_version, to_version)

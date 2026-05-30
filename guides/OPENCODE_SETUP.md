@@ -308,8 +308,9 @@ Create `.opencode.jsonc` in your Odoo project workspace:
 
 ### Scenario: Creating a Library Management Module
 
-#### Step 1: Set Version
+#### Step 1: Detect and Set Version
 ```
+Detect Odoo version for this workspace
 Set version to 19.0
 ```
 
@@ -560,9 +561,11 @@ The server points to official Odoo documentation URLs and does not require local
 
 This MCP server works especially well alongside the companion Odoo skills repo at [mart337i/odoo-skills](https://github.com/mart337i/odoo-skills). Keep using those skills for deeper Odoo workflows; this server supplies version-aware tools and official documentation links that complement them without requiring the skills repo at runtime.
 
-### All 21 Tools
+### All 23 Tools
 ✅ `set_odoo_version` - Version switching
 ✅ `get_current_version` - Version check
+✅ `detect_odoo_version` - Read-only local Odoo version detection
+✅ `inspect_odoo_source` - AST source inspection for Odoo core and addons
 ✅ `get_odoo_local_context` - Local Odoo source, command, and tooling README context
 ✅ `get_documentation_url` - Official Odoo documentation URL lookup
 ✅ `search_documentation` - Official reference catalog search

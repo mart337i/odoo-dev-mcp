@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `detect_odoo_version` tool to report likely local Odoo versions from environment variables, `release.py`, addon manifests, and branch names without changing the active MCP version.
+- `inspect_odoo_source` tool to read Odoo core and addon source with AST and return compact summaries of manifests, models, controllers, routes, imports, parse issues, and suggested next reads.
+
 ## [1.2.0] - 2026-05-08
 
 ### Added
